@@ -154,31 +154,48 @@ export function ServerForm({
               message={validation || errorMessage(connection.error)}
             />
           )}
-          <div className="dialog-actions">
-            {server && (
-              <Button
-                variant="ghost"
-                disabled={connection.isPending}
-                onClick={() => setRemoving(true)}
-                aria-label="Remove server connection"
-              >
-                <Trash2 />
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              disabled={connection.isPending}
-              onClick={onClose}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={connection.isPending}>
-              {connection.isPending ? <Spinner /> : <ArrowRight />}
-              {connection.isPending ? 'Testing connection…' : 'Test & save'}
-            </Button>
-          </div>
+          <ServerFormActions
+            pending={connection.isPending}
+            canRemove={!!server}
+            onRemove={() => setRemoving(true)}
+            onClose={onClose}
+          />
         </form>
       )}
     </Dialog>
+  )
+}
+
+function ServerFormActions({
+  pending,
+  canRemove,
+  onRemove,
+  onClose,
+}: {
+  pending: boolean
+  canRemove: boolean
+  onRemove: () => void
+  onClose: () => void
+}) {
+  return (
+    <div className="dialog-actions">
+      {canRemove && (
+        <Button
+          variant="ghost"
+          disabled={pending}
+          onClick={onRemove}
+          aria-label="Remove server connection"
+        >
+          <Trash2 />
+        </Button>
+      )}
+      <Button variant="outline" disabled={pending} onClick={onClose}>
+        Cancel
+      </Button>
+      <Button type="submit" disabled={pending}>
+        {pending ? <Spinner /> : <ArrowRight />}
+        {pending ? 'Testing connection…' : 'Test & save'}
+      </Button>
+    </div>
   )
 }

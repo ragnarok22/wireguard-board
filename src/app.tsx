@@ -22,15 +22,7 @@ import { ServerForm } from '@/features/servers/server-form'
 import { ServerDashboard } from '@/features/dashboard/server-dashboard'
 import './app.css'
 
-function ServerItem({
-  server,
-  selected,
-  onSelect,
-}: {
-  server: ServerConnection
-  selected: boolean
-  onSelect: () => void
-}) {
+function useServerNavigationStatus(server: ServerConnection) {
   const health = useQuery({
     queryKey: [...serverQueryKey(server), 'readiness'],
     queryFn: ({ signal }) => api.ready(server, signal),
@@ -43,17 +35,31 @@ function ServerItem({
     enabled: !!server.token,
     refetchInterval: 30_000,
   })
-  const status = !server.token
-    ? 'Locked'
-    : health.isPending
-      ? 'Checking'
-      : health.error
-        ? liveness.isSuccess
-          ? 'Alive · readiness unavailable'
-          : 'Unreachable'
-        : health.data.status === 'ready'
-          ? 'Ready'
-          : 'Not ready'
+  if (!server.token) return { label: 'Locked', dotClass: '' }
+  if (health.isPending) return { label: 'Checking', dotClass: '' }
+  if (health.error) {
+    return {
+      label: liveness.isSuccess
+        ? 'Alive · readiness unavailable'
+        : 'Unreachable',
+      dotClass: 'dot-amber',
+    }
+  }
+  if (health.data.status === 'ready')
+    return { label: 'Ready', dotClass: 'dot-green' }
+  return { label: 'Not ready', dotClass: 'dot-amber' }
+}
+
+function ServerItem({
+  server,
+  selected,
+  onSelect,
+}: {
+  server: ServerConnection
+  selected: boolean
+  onSelect: () => void
+}) {
+  const status = useServerNavigationStatus(server)
   return (
     <button
       className={`server-nav-item ${selected ? 'selected' : ''}`}
@@ -63,11 +69,9 @@ function ServerItem({
       <Server size={17} />
       <span>
         <strong>{server.name}</strong>
-        <small>{status}</small>
+        <small>{status.label}</small>
       </span>
-      <span
-        className={`status-dot ${status === 'Ready' ? 'dot-green' : status === 'Locked' || status === 'Checking' ? '' : 'dot-amber'}`}
-      />
+      <span className={`status-dot ${status.dotClass}`} />
     </button>
   )
 }

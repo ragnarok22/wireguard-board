@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import {
   Activity,
   LockKeyhole,
@@ -19,6 +19,9 @@ import { PeerList } from './peer-list'
 import { ServerStats } from './server-stats'
 import { TrackedOperations } from '@/features/peers/operation-status'
 import { MetricsDialog } from './metrics-dialog'
+
+type ReadinessQuery = UseQueryResult<Awaited<ReturnType<typeof api.ready>>>
+type LivenessQuery = UseQueryResult<Awaited<ReturnType<typeof api.live>>>
 
 export function ServerDashboard({
   server,
@@ -52,16 +55,6 @@ export function ServerDashboard({
     refetchInterval: 15_000,
   })
   const [dialog, setDialog] = useState<'create' | 'metrics' | Peer | null>(null)
-  const healthy = !health.error && health.data?.status === 'ready'
-  const status = health.isPending
-    ? 'Checking'
-    : health.error
-      ? live.data && !live.error
-        ? 'Alive · readiness unavailable'
-        : 'Unreachable'
-      : healthy
-        ? 'Ready'
-        : 'Not ready'
   const refreshing =
     health.isFetching || peers.isFetching || info.isFetching || live.isFetching
   const canCreate = peers.isSuccess && !peers.error
@@ -97,63 +90,24 @@ export function ServerDashboard({
           </Button>
         </div>
       </header>
-      <section className="server-strip" aria-label="Server connection">
-        <div className="server-strip-address">
-          <span className="server-icon">
-            <Radio size={20} />
-          </span>
-          <div>
-            <strong>{new URL(server.url).host}</strong>
-            <span>
-              {health.data?.interface ?? 'WireGuard API'}{' '}
-              <span className="separator">/</span> {server.url}
-            </span>
-          </div>
-        </div>
-        <div className="server-strip-actions">
-          <span
-            className={`status-badge ${healthy ? 'healthy' : health.isPending ? '' : 'unhealthy'}`}
-          >
-            <span className="status-dot" />
-            {status}
-          </span>
-          <button
-            className="icon-button"
-            aria-label="Lock server"
-            title="Forget this session’s API token"
-            onClick={onLock}
-          >
-            <LockKeyhole size={17} />
-          </button>
-        </div>
-      </section>
-      {(health.error || peers.error || info.error || live.error) && (
-        <div className="dashboard-error">
-          <ErrorNotice
-            message={`${errorMessage(peers.error ?? info.error ?? health.error ?? live.error)}${peers.data ? ' Previously fetched data is shown below.' : ''}`}
-          />
-          <div className="button-row">
-            <Button
-              variant="outline"
-              onClick={() => {
-                void refresh()
-              }}
-              disabled={refreshing}
-            >
-              <RefreshCw />
-              Retry
-            </Button>
-            <Button variant="outline" onClick={onSettings}>
-              Check connection
-            </Button>
-          </div>
-        </div>
-      )}
-      {health.data?.status === 'not_ready' && !health.error && (
-        <ErrorNotice
-          message={`The API is reachable but not ready. Reason: ${health.data.reason ?? 'unavailable'}. Pending operations may still be reconciling.`}
-        />
-      )}
+      <ServerConnectionStrip
+        server={server}
+        health={health}
+        live={live}
+        onLock={onLock}
+      />
+      <DashboardErrors
+        health={health}
+        peerError={peers.error}
+        infoError={info.error}
+        liveError={live.error}
+        hasPeerData={!!peers.data}
+        refreshing={refreshing}
+        onRefresh={() => {
+          void refresh()
+        }}
+        onSettings={onSettings}
+      />
       {info.data && (
         <section
           className="server-information"
@@ -221,6 +175,109 @@ export function ServerDashboard({
       )}
       {dialog === 'metrics' && (
         <MetricsDialog server={server} onClose={() => setDialog(null)} />
+      )}
+    </>
+  )
+}
+
+function getConnectionStatus(health: ReadinessQuery, live: LivenessQuery) {
+  if (health.isPending) return 'Checking'
+  if (health.error)
+    return live.data && !live.error
+      ? 'Alive · readiness unavailable'
+      : 'Unreachable'
+  return health.data?.status === 'ready' ? 'Ready' : 'Not ready'
+}
+
+function ServerConnectionStrip({
+  server,
+  health,
+  live,
+  onLock,
+}: {
+  server: ServerConnection
+  health: ReadinessQuery
+  live: LivenessQuery
+  onLock: () => void
+}) {
+  const healthy = !health.error && health.data?.status === 'ready'
+  const status = getConnectionStatus(health, live)
+  return (
+    <section className="server-strip" aria-label="Server connection">
+      <div className="server-strip-address">
+        <span className="server-icon">
+          <Radio size={20} />
+        </span>
+        <div>
+          <strong>{new URL(server.url).host}</strong>
+          <span>
+            {health.data?.interface ?? 'WireGuard API'}{' '}
+            <span className="separator">/</span> {server.url}
+          </span>
+        </div>
+      </div>
+      <div className="server-strip-actions">
+        <span
+          className={`status-badge ${healthy ? 'healthy' : health.isPending ? '' : 'unhealthy'}`}
+        >
+          <span className="status-dot" />
+          {status}
+        </span>
+        <button
+          className="icon-button"
+          aria-label="Lock server"
+          title="Forget this session’s API token"
+          onClick={onLock}
+        >
+          <LockKeyhole size={17} />
+        </button>
+      </div>
+    </section>
+  )
+}
+
+function DashboardErrors({
+  health,
+  peerError,
+  infoError,
+  liveError,
+  hasPeerData,
+  refreshing,
+  onRefresh,
+  onSettings,
+}: {
+  health: ReadinessQuery
+  peerError: Error | null
+  infoError: Error | null
+  liveError: Error | null
+  hasPeerData: boolean
+  refreshing: boolean
+  onRefresh: () => void
+  onSettings: () => void
+}) {
+  const error = peerError ?? infoError ?? health.error ?? liveError
+  return (
+    <>
+      {error && (
+        <div className="dashboard-error">
+          <ErrorNotice
+            message={`${errorMessage(error)}${hasPeerData ? ' Previously fetched data is shown below.' : ''}`}
+          />
+          <div className="button-row">
+            <Button variant="outline" onClick={onRefresh} disabled={refreshing}>
+              <RefreshCw />
+              Retry
+            </Button>
+            <Button variant="outline" onClick={onSettings}>
+              Check connection
+            </Button>
+          </div>
+        </div>
+      )}
+      {health.data?.status === 'not_ready' && !health.error && (
+        <ErrorNotice
+          message={`The API is reachable but not ready. Reason: ${health.data.reason ?? 'unavailable'}. Pending operations may still be reconciling.`}
+        />
       )}
     </>
   )

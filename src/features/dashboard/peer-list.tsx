@@ -19,6 +19,14 @@ import {
   shortKey,
 } from '@/lib/formatters'
 
+function peerActivity(peer: Peer, recent: boolean) {
+  if (peer.state !== 'active') return peer.state
+  if (!peer.applied) return 'Not applied'
+  if (!peer.observation) return 'Unavailable'
+  if (recent) return 'Recent'
+  return peer.observation.latest_handshake ? 'Idle' : 'Never seen'
+}
+
 function PeerRow({
   peer,
   onSelect,
@@ -47,17 +55,7 @@ function PeerRow({
       <td>
         <span className={`activity-tag ${recent ? 'recent' : ''}`}>
           <span className="status-dot" />
-          {peer.state !== 'active'
-            ? peer.state
-            : !peer.applied
-              ? 'Not applied'
-              : !observation
-                ? 'Unavailable'
-                : recent
-                  ? 'Recent'
-                  : observation.latest_handshake
-                    ? 'Idle'
-                    : 'Never seen'}
+          {peerActivity(peer, recent)}
         </span>
       </td>
       <td>

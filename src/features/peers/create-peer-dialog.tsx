@@ -7,7 +7,12 @@ import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { CopyButton, ErrorNotice, Spinner } from '@/components/ui/feedback'
 import { api, ApiError, errorMessage } from '@/lib/api-client'
-import type { PeerInput, ServerConnection } from '@/lib/api-types'
+import type {
+  CreatedPeer,
+  Operation,
+  PeerInput,
+  ServerConnection,
+} from '@/lib/api-types'
 import { configFilename, downloadText } from '@/lib/client-config'
 import {
   refreshInventory,
@@ -16,6 +21,16 @@ import {
 } from '@/hooks/use-operations'
 
 type Attempt = { input: PeerInput; requestKey: string }
+
+function creationTitle(
+  created: CreatedPeer | undefined,
+  status: Operation['status'] | undefined,
+) {
+  if (!created) return 'Add a peer'
+  if (status === 'complete') return 'Your peer is ready'
+  if (status === 'cancelled') return 'Creation cancelled'
+  return 'Peer application pending'
+}
 
 export function CreatePeerDialog({
   server,
@@ -77,15 +92,7 @@ export function CreatePeerDialog({
 
   return (
     <Dialog
-      title={
-        created
-          ? status === 'complete'
-            ? 'Your peer is ready'
-            : status === 'cancelled'
-              ? 'Creation cancelled'
-              : 'Peer application pending'
-          : 'Add a peer'
-      }
+      title={creationTitle(created, status)}
       description={`Create a device configuration on ${server.name}.`}
       onClose={onClose}
       busy={create.isPending}
@@ -145,162 +152,229 @@ export function CreatePeerDialog({
             </details>
           </fieldset>
           {validation && <ErrorNotice message={validation} />}
-          {create.error && (
-            <ErrorNotice
-              message={`${errorMessage(create.error)} Retry this same request to recover its peer and operation identity. Generated credentials cannot be recovered if the first response was lost.`}
-            />
-          )}
-          {create.error instanceof ApiError &&
-            create.error.status >= 400 &&
-            create.error.status < 500 && (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setAttempt(undefined)
-                  create.reset()
-                }}
-              >
-                Edit request
-              </Button>
-            )}
-          <div className="dialog-actions">
-            <Button
-              variant="outline"
-              disabled={create.isPending}
-              onClick={onClose}
-            >
-              Cancel
-            </Button>
-            {attempt && create.error ? (
-              <Button
-                disabled={create.isPending}
-                onClick={() => create.mutate(attempt)}
-              >
-                <RefreshCw />
-                Retry same request
-              </Button>
-            ) : (
-              <Button type="submit" disabled={create.isPending}>
-                {create.isPending ? <Spinner /> : <Plus />}
-                {create.isPending ? 'Creating peer…' : 'Create peer'}
-              </Button>
-            )}
-          </div>
+          <CreatePeerActions
+            pending={create.isPending}
+            error={create.error}
+            attempt={attempt}
+            onRetry={(request) => create.mutate(request)}
+            onEdit={() => {
+              setAttempt(undefined)
+              create.reset()
+            }}
+            onClose={onClose}
+          />
         </form>
       ) : (
-        <div className="dialog-body">
-          <div className="created-summary">
-            <span
-              className={`status-badge ${status === 'complete' ? 'healthy' : ''}`}
-            >
-              {status === 'complete'
-                ? 'Peer created'
-                : status === 'cancelled'
-                  ? 'Creation cancelled'
-                  : 'Application pending'}
-            </span>
-            <code>{created.peer.address}/32</code>
-          </div>
-          {status === 'pending' && (
-            <div className="notice" role="status">
-              <Spinner />
-              <span>
-                Save any credentials now. Wait until the operation is complete
-                before importing or activating this tunnel. The backend is
-                retrying application.
-                {progress.data?.operation.error &&
-                  ` Last error: ${progress.data.operation.error}`}
-              </span>
-            </div>
-          )}
-          {status === 'cancelled' && (
-            <ErrorNotice message="This creation was superseded by deletion. Do not activate this configuration." />
-          )}
-          {progress.error && (
-            <>
-              <ErrorNotice message={errorMessage(progress.error)} />
-              <Button
-                variant="outline"
-                onClick={() => {
-                  void progress.refetch()
-                }}
-              >
-                Check operation
-              </Button>
-            </>
-          )}
-          {created.replayed &&
-          !config &&
-          attempt?.input.key_mode === 'generated' ? (
-            <ErrorNotice message="The request was recovered, but its one-time private key is no longer available. Revoke this peer, wait for completed revocation, then create a replacement with a new request key." />
-          ) : config ? (
-            <>
-              <div className="notice">
-                <KeyRound size={18} />
-                <span>
-                  Save this configuration before closing. The API returns the
-                  private key only once.
-                </span>
-              </div>
-              <div
-                className={`config-preview ${status !== 'complete' ? 'config-pending' : ''}`}
-              >
-                {status === 'complete' && (
-                  <div className="qr-panel">
-                    <QRCodeSVG
-                      value={config}
-                      size={176}
-                      marginSize={2}
-                      level="M"
-                      title="WireGuard client configuration"
-                    />
-                    <span>Scan with the WireGuard app</span>
-                  </div>
-                )}
-                <pre tabIndex={0}>{config}</pre>
-              </div>
-              <div className="button-row">
-                <Button
-                  onClick={() => downloadText(config, configFilename(name))}
-                >
-                  <Download />
-                  Download .conf
-                </Button>
-                <CopyButton text={config} label="Copy config" />
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    downloadText(
-                      JSON.stringify(created, null, 2),
-                      configFilename(name).replace('.conf', '-keys.json'),
-                    )
-                  }
-                >
-                  <Download />
-                  Save creation response
-                </Button>
-              </div>
-            </>
-          ) : (
-            <div className="notice">
-              Your peer uses the public key you provided. Configure its private
-              key on your device using the configuration template in peer
-              details.
-            </div>
-          )}
-          <details className="advanced">
-            <summary>Peer identity</summary>
-            <code className="full-key">{created.peer.id}</code>
-            <code className="full-key">{created.peer.public_key}</code>
-            <code className="full-key">Operation: {created.operation.id}</code>
-          </details>
-          <div className="dialog-actions">
-            <Button variant="outline" onClick={onClose}>
-              Done
-            </Button>
-          </div>
-        </div>
+        <CreatedPeerResult
+          created={created}
+          status={status}
+          progress={progress}
+          attempt={attempt}
+          name={name}
+          onClose={onClose}
+        />
       )}
     </Dialog>
+  )
+}
+
+function CreatePeerActions({
+  pending,
+  error,
+  attempt,
+  onRetry,
+  onEdit,
+  onClose,
+}: {
+  pending: boolean
+  error: Error | null
+  attempt: Attempt | undefined
+  onRetry: (request: Attempt) => void
+  onEdit: () => void
+  onClose: () => void
+}) {
+  return (
+    <>
+      {error && (
+        <ErrorNotice
+          message={`${errorMessage(error)} Retry this same request to recover its peer and operation identity. Generated credentials cannot be recovered if the first response was lost.`}
+        />
+      )}
+      {error instanceof ApiError &&
+        error.status >= 400 &&
+        error.status < 500 && (
+          <Button variant="outline" onClick={onEdit}>
+            Edit request
+          </Button>
+        )}
+      <div className="dialog-actions">
+        <Button variant="outline" disabled={pending} onClick={onClose}>
+          Cancel
+        </Button>
+        {attempt && error ? (
+          <Button disabled={pending} onClick={() => onRetry(attempt)}>
+            <RefreshCw />
+            Retry same request
+          </Button>
+        ) : (
+          <Button type="submit" disabled={pending}>
+            {pending ? <Spinner /> : <Plus />}
+            {pending ? 'Creating peer…' : 'Create peer'}
+          </Button>
+        )}
+      </div>
+    </>
+  )
+}
+
+function CreatedPeerResult({
+  created,
+  status,
+  progress,
+  attempt,
+  name,
+  onClose,
+}: {
+  created: CreatedPeer
+  status: Operation['status'] | undefined
+  progress: ReturnType<typeof useOperation>
+  attempt: Attempt | undefined
+  name: string
+  onClose: () => void
+}) {
+  return (
+    <div className="dialog-body">
+      <div className="created-summary">
+        <span
+          className={`status-badge ${status === 'complete' ? 'healthy' : ''}`}
+        >
+          {status === 'complete'
+            ? 'Peer created'
+            : status === 'cancelled'
+              ? 'Creation cancelled'
+              : 'Application pending'}
+        </span>
+        <code>{created.peer.address}/32</code>
+      </div>
+      {status === 'pending' && (
+        <div className="notice" role="status">
+          <Spinner />
+          <span>
+            Save any credentials now. Wait until the operation is complete
+            before importing or activating this tunnel. The backend is retrying
+            application.
+            {progress.data?.operation.error &&
+              ` Last error: ${progress.data.operation.error}`}
+          </span>
+        </div>
+      )}
+      {status === 'cancelled' && (
+        <ErrorNotice message="This creation was superseded by deletion. Do not activate this configuration." />
+      )}
+      {progress.error && (
+        <>
+          <ErrorNotice message={errorMessage(progress.error)} />
+          <Button
+            variant="outline"
+            onClick={() => {
+              void progress.refetch()
+            }}
+          >
+            Check operation
+          </Button>
+        </>
+      )}
+      <CreatedPeerConfiguration
+        created={created}
+        status={status}
+        attempt={attempt}
+        name={name}
+      />
+      <details className="advanced">
+        <summary>Peer identity</summary>
+        <code className="full-key">{created.peer.id}</code>
+        <code className="full-key">{created.peer.public_key}</code>
+        <code className="full-key">Operation: {created.operation.id}</code>
+      </details>
+      <div className="dialog-actions">
+        <Button variant="outline" onClick={onClose}>
+          Done
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function CreatedPeerConfiguration({
+  created,
+  status,
+  attempt,
+  name,
+}: {
+  created: CreatedPeer
+  status: Operation['status'] | undefined
+  attempt: Attempt | undefined
+  name: string
+}) {
+  const config = created.client_config
+  if (created.replayed && !config && attempt?.input.key_mode === 'generated') {
+    return (
+      <ErrorNotice message="The request was recovered, but its one-time private key is no longer available. Revoke this peer, wait for completed revocation, then create a replacement with a new request key." />
+    )
+  }
+  if (config) {
+    return (
+      <>
+        <div className="notice">
+          <KeyRound size={18} />
+          <span>
+            Save this configuration before closing. The API returns the private
+            key only once.
+          </span>
+        </div>
+        <div
+          className={`config-preview ${status !== 'complete' ? 'config-pending' : ''}`}
+        >
+          {status === 'complete' && (
+            <div className="qr-panel">
+              <QRCodeSVG
+                value={config}
+                size={176}
+                marginSize={2}
+                level="M"
+                title="WireGuard client configuration"
+              />
+              <span>Scan with the WireGuard app</span>
+            </div>
+          )}
+          <pre tabIndex={0}>{config}</pre>
+        </div>
+        <div className="button-row">
+          <Button onClick={() => downloadText(config, configFilename(name))}>
+            <Download />
+            Download .conf
+          </Button>
+          <CopyButton text={config} label="Copy config" />
+          <Button
+            variant="outline"
+            onClick={() =>
+              downloadText(
+                JSON.stringify(created, null, 2),
+                configFilename(name).replace('.conf', '-keys.json'),
+              )
+            }
+          >
+            <Download />
+            Save creation response
+          </Button>
+        </div>
+      </>
+    )
+  }
+  return (
+    <div className="notice">
+      Your peer uses the public key you provided. Configure its private key on
+      your device using the configuration template in peer details.
+    </div>
   )
 }

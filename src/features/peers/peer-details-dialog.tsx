@@ -1,5 +1,10 @@
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseQueryResult,
+} from '@tanstack/react-query'
 import { Download, FileCode2, RefreshCw, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
@@ -116,54 +121,7 @@ export function PeerDetailsDialog({
                 </Button>
               </>
             )}
-            <dl className="detail-grid">
-              <div>
-                <dt>VPN address</dt>
-                <dd>{data.address}/32</dd>
-              </div>
-              <div>
-                <dt>Endpoint</dt>
-                <dd>
-                  {data.observation
-                    ? data.observation.endpoint || 'Not seen yet'
-                    : 'Unavailable'}
-                </dd>
-              </div>
-              <div>
-                <dt>Last handshake</dt>
-                <dd>
-                  {data.observation
-                    ? handshakeLabel(data.observation.latest_handshake)
-                    : 'Unavailable'}
-                </dd>
-              </div>
-              <div>
-                <dt>Keepalive</dt>
-                <dd>
-                  {data.observation
-                    ? data.observation.persistent_keepalive
-                      ? `${data.observation.persistent_keepalive}s`
-                      : 'Off'
-                    : 'Unavailable'}
-                </dd>
-              </div>
-              <div>
-                <dt>Received by server</dt>
-                <dd>
-                  {data.observation
-                    ? formatBytes(data.observation.transfer_rx)
-                    : '—'}
-                </dd>
-              </div>
-              <div>
-                <dt>Sent by server</dt>
-                <dd>
-                  {data.observation
-                    ? formatBytes(data.observation.transfer_tx)
-                    : '—'}
-                </dd>
-              </div>
-            </dl>
+            <PeerObservationDetails peer={data} />
             <dl className="detail-grid">
               <div>
                 <dt>State</dt>
@@ -188,56 +146,7 @@ export function PeerDetailsDialog({
               <CopyButton text={data.public_key} label="Copy public key" />
             </div>
             {showConfig ? (
-              <div className="config-template">
-                <div className="notice">
-                  This is a configuration template, not a ready-to-import client
-                  file. Replace &lt;YOUR_PRIVATE_KEY&gt; locally with your
-                  retained private key before importing. The API cannot recover
-                  a generated private key.
-                </div>
-                {config.isPending && (
-                  <div className="loading-inline">
-                    <Spinner />
-                    Loading configuration…
-                  </div>
-                )}
-                {config.error && (
-                  <>
-                    <ErrorNotice message={errorMessage(config.error)} />
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        void config.refetch()
-                      }}
-                    >
-                      Retry configuration
-                    </Button>
-                  </>
-                )}
-                {config.data && (
-                  <>
-                    <pre tabIndex={0}>{config.data.config}</pre>
-                    <div className="button-row">
-                      <CopyButton
-                        text={config.data.config}
-                        label="Copy template"
-                      />
-                      <Button
-                        variant="outline"
-                        onClick={() =>
-                          downloadText(
-                            config.data!.config,
-                            'wireguard-template.conf',
-                          )
-                        }
-                      >
-                        <Download />
-                        Download template .conf
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </div>
+              <PeerConfigTemplate config={config} />
             ) : (
               <Button variant="outline" onClick={() => setShowConfig(true)}>
                 <FileCode2 />
@@ -260,5 +169,106 @@ export function PeerDetailsDialog({
         )}
       </div>
     </Dialog>
+  )
+}
+
+function PeerObservationDetails({ peer: data }: { peer: Peer }) {
+  return (
+    <dl className="detail-grid">
+      <div>
+        <dt>VPN address</dt>
+        <dd>{data.address}/32</dd>
+      </div>
+      <div>
+        <dt>Endpoint</dt>
+        <dd>
+          {data.observation
+            ? data.observation.endpoint || 'Not seen yet'
+            : 'Unavailable'}
+        </dd>
+      </div>
+      <div>
+        <dt>Last handshake</dt>
+        <dd>
+          {data.observation
+            ? handshakeLabel(data.observation.latest_handshake)
+            : 'Unavailable'}
+        </dd>
+      </div>
+      <div>
+        <dt>Keepalive</dt>
+        <dd>
+          {data.observation
+            ? data.observation.persistent_keepalive
+              ? `${data.observation.persistent_keepalive}s`
+              : 'Off'
+            : 'Unavailable'}
+        </dd>
+      </div>
+      <div>
+        <dt>Received by server</dt>
+        <dd>
+          {data.observation ? formatBytes(data.observation.transfer_rx) : '—'}
+        </dd>
+      </div>
+      <div>
+        <dt>Sent by server</dt>
+        <dd>
+          {data.observation ? formatBytes(data.observation.transfer_tx) : '—'}
+        </dd>
+      </div>
+    </dl>
+  )
+}
+
+function PeerConfigTemplate({
+  config,
+}: {
+  config: UseQueryResult<Awaited<ReturnType<typeof api.peerConfig>>>
+}) {
+  return (
+    <div className="config-template">
+      <div className="notice">
+        This is a configuration template, not a ready-to-import client file.
+        Replace &lt;YOUR_PRIVATE_KEY&gt; locally with your retained private key
+        before importing. The API cannot recover a generated private key.
+      </div>
+      {config.isPending && (
+        <div className="loading-inline">
+          <Spinner />
+          Loading configuration…
+        </div>
+      )}
+      {config.error && (
+        <>
+          <ErrorNotice message={errorMessage(config.error)} />
+          <Button
+            variant="outline"
+            onClick={() => {
+              void config.refetch()
+            }}
+          >
+            Retry configuration
+          </Button>
+        </>
+      )}
+      {config.data && (
+        <>
+          <pre tabIndex={0}>{config.data.config}</pre>
+          <div className="button-row">
+            <CopyButton text={config.data.config} label="Copy template" />
+            <Button
+              variant="outline"
+              onClick={() =>
+                downloadText(config.data!.config, 'wireguard-template.conf')
+              }
+            >
+              <Download />
+              Download template .conf
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
   )
 }
