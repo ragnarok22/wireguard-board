@@ -7,21 +7,18 @@ import {
 } from './api-types'
 
 export const maxServerImportBytes = 1024 * 1024
-const transferSchema = z
-  .object({
-    version: z.literal(1),
-    servers: z
-      .array(
-        serverMetadataSchema
-          .extend({
-            id: z.string().min(1).max(128),
-            url: z.string().url().max(2048),
-          })
-          .strict(),
-      )
-      .max(250),
-  })
-  .strict()
+const transferSchema = z.strictObject({
+  version: z.literal(1),
+  servers: z
+    .array(
+      z.strictObject({
+        ...serverMetadataSchema.shape,
+        id: z.string().min(1).max(128),
+        url: z.url().max(2048),
+      }),
+    )
+    .max(250),
+})
 
 export function exportServers(servers: ServerMetadata[]): string {
   const metadata = servers.map(({ id, name, url }) => ({
