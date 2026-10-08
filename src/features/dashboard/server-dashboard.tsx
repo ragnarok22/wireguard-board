@@ -52,8 +52,6 @@ export function ServerDashboard({
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
   const [dialog, setDialog] = useState<'create' | Peer | null>(null)
-  const [autoRefresh, setAutoRefresh] = useState(true)
-  // TanStack Query suspends intervals in background tabs. A paused view uses disabled observers below.
   const allPeers = peers.data ?? []
   const activePeers = allPeers.filter((peer) =>
     isRecentlyActive(peer.latest_handshake),
