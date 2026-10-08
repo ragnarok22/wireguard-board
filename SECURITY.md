@@ -49,12 +49,13 @@ restricts outbound routes and methods, blocks non-public addresses, pins validat
 DNS results, rejects redirects and retains HTTPS certificate validation. Report any
 bypass of those boundaries privately using the channel above.
 
-On Vercel, a shared Firewall rate-limit check runs before DNS resolution and API
-access. Only the deployment host and trusted client IP are passed to the counter
-SDK; API tokens, cookies and destination URLs are excluded. Missing configuration
-or an unavailable counter service fails closed. Production responses also carry
+On Vercel, a published native WAF rule counts requests to `/api/wireguard` by the
+connection's client IP and rejects excess traffic before function invocation,
+DNS resolution or API access. The application makes no counter-service subrequest
+and uses no tokens or client-supplied headers as rate-limit keys. Production responses carry
 the policies in `vercel.json`, including same-origin script/connect CSP and framing
-protection. Local Vite does not emulate production rate-limit counters.
+protection. Deploying code alone does not activate this policy; operators must
+publish and maintain the project's WAF rule. Local Vite does not emulate its counters.
 
 Server transfer files contain metadata only. Imports are bounded and schema-checked,
 extra credential fields are rejected, and new connections start locked. The deployed

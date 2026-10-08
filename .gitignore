@@ -26,3 +26,4 @@ coverage
 *.sln
 *.sw?
 .env*
+!.env.smoke.example

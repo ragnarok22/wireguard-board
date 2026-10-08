@@ -31,17 +31,15 @@ describe('versioned API contract', () => {
   it('preserves a backend-provided rate-limit explanation', async () => {
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn()
-        .mockResolvedValue(
-          jsonResponse(
-            {
-              code: 'backend_limit',
-              detail: 'Backend concurrency limit reached',
-            },
-            429,
-          ),
+      vi.fn().mockResolvedValue(
+        jsonResponse(
+          {
+            code: 'backend_limit',
+            detail: 'Backend concurrency limit reached',
+          },
+          429,
         ),
+      ),
     )
     await expect(api.peers(server)).rejects.toMatchObject({
       status: 429,

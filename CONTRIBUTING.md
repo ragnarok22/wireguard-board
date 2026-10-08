@@ -98,8 +98,8 @@ pnpm lint
 For documentation-only changes, run `pnpm format:check`.
 
 CI uses Node.js 24 and the pnpm version pinned in `package.json`. Changes to proxy
-rate limiting must preserve shared counters, trusted-IP handling and credential
-redaction. Changes to metadata transfer must keep imported servers locked and
+rate limiting must preserve the native path-based WAF policy, per-client-IP counting
+and credential redaction. Changes to metadata transfer must keep imported servers locked and
 exclude credentials from exports. Security-header changes must stay consistent
 between `vercel.json` and `server/security-headers.ts`.
 

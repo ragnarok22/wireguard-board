@@ -339,10 +339,9 @@ adding a new destination does not require redeploying. Production and preview
 deployments call their own same-origin proxy, so API CORS origins do not need to
 change between deployments.
 
-Enable Vercel's automatic system environment variables and publish the rate-limit
-rule below before using the deployed proxy. Protected preview deployments also
-need **Protection Bypass for Automation** enabled for the Firewall SDK's internal
-counter checks, as described in the [Vercel rate-limiting SDK documentation](https://vercel.com/docs/vercel-firewall/vercel-waf/rate-limiting-sdk).
+Publish the native rate-limit rule below for each Vercel project. Protected preview
+deployments require a Deployment Protection bypass secret for automated smoke
+requests; ordinary public production deployments do not.
 
 Uploading `dist/` alone to a static host does not deploy the proxy. Other hosting
 must provide the same `/api/wireguard` Node handler. `pnpm dev` and `pnpm preview`
@@ -351,8 +350,9 @@ HTTP servers; they do not require privileged networking or a live VPN API.
 
 ### Proxy rate limiting
 
-The proxy uses `@vercel/firewall` and Vercel-managed counters, not an in-memory
-counter or a new application database. The default rule allows **240 requests per
+Vercel's native WAF counts requests whose path starts with `/api/wireguard`, before
+invoking the function. It uses neither an in-memory application counter nor a new
+database or SDK subrequest. The default rule allows **240 requests per
 60 seconds per client IP per region**. Requests share a bucket across the caller's
 servers, so switching destinations or tokens does not reset the limit. Tune the
 request count for larger workspaces or multiple users behind the same NAT.
@@ -369,21 +369,19 @@ vercel firewall publish --yes
 
 If the named **WireGuard proxy** rule already exists, use
 `pnpm firewall:configure --update` to update it instead of creating another one.
-The setup command stages one rule with rate-limit ID `wireguard-proxy`; inspect the
+The setup command stages the path-based policy in `server/firewall-policy.ts`; inspect the
 draft before publishing because Vercel publishes all pending firewall changes.
 Hobby supports one rate-limit rule; use this rule rather than creating duplicates.
 
-The handler checks the shared counter before resolving DNS or calling an API. It
-passes only the deployment host and Vercel-supplied client IP to the counter SDK,
-excluding API tokens, cookies, destinations and idempotency keys. Limit responses
-use HTTP `429`, `Retry-After: 60` and `Cache-Control: no-store`. A missing rule,
-missing platform context or counter-service failure produces a `503` without
-contacting the API. Checks have a one-second deadline and are skipped by local Vite
-development/preview. Vercel counts are regional, not a single global quota.
-
-SDK checks run inside the function using Vercel's shared firewall counters. They
-bound upstream usage; individual requests still invoke the function. This setup
-uses the SDK rule and does not require an additional path-based counting rule.
+The WAF uses the actual connection's client IP and counts all methods together;
+client-supplied headers and API tokens are not counting keys. Excess requests
+receive HTTP `429` at the edge without resolving DNS, invoking the function or
+contacting a WireGuard API. The board handles non-JSON edge responses and displays
+a one-minute cooldown message when no backend explanation is supplied. Vercel
+controls the mitigation response headers; the application does not replace them.
+Counters are regional, not a single global quota, and local Vite does not emulate
+them. Verify the published rule with `vercel firewall rules inspect "WireGuard proxy"`;
+deploying application code alone does not create or activate the firewall policy.
 
 ### Security headers
 
