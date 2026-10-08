@@ -63,7 +63,7 @@ export function validateRoute(
           name === 'handshake_window_seconds' &&
           /^\d+$/.test(value) &&
           Number(value) >= 1 &&
-          Number(value) <= 86400))
+          Number(value) <= 3600))
     if (!valid) throw invalid()
   }
   return { path, authenticated: !publicRead, metrics: pathname === '/metrics' }

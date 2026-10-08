@@ -6,6 +6,7 @@ import App from '@/app'
 import { CreatePeerDialog } from '@/features/peers/create-peer-dialog'
 import { ServerDashboard } from '@/features/dashboard/server-dashboard'
 import { saveServers, storageKey } from '@/lib/server-storage'
+import { proxyPath, proxyTargetUrl } from './proxy-fixtures'
 import {
   health,
   jsonResponse,
@@ -43,7 +44,7 @@ function mockApi() {
   ])
   const fetchMock = vi.fn(
     async (input: string | URL | Request, options?: RequestInit) => {
-      const url = new URL(String(input))
+      const url = proxyTargetUrl(input, options)
       const list = peersByHost.get(url.host) ?? []
       if (url.pathname === '/readyz') return jsonResponse(health)
       if (url.pathname === '/livez') return jsonResponse(live)
@@ -375,7 +376,7 @@ describe('one-time peer configuration', () => {
   })
   it('saves pending credentials immediately and enables the QR only after operation completion', async () => {
     const fetchMock = vi.fn(async (url: string) =>
-      url.endsWith('/v1/peers')
+      proxyPath(url).endsWith('/v1/peers')
         ? jsonResponse(
             {
               ...createdPeer,
@@ -419,7 +420,9 @@ describe('one-time peer configuration', () => {
       screen.getByTitle('WireGuard client configuration'),
     ).toBeInTheDocument()
     expect(
-      fetchMock.mock.calls.filter(([url]) => url.endsWith('/v1/peers')),
+      fetchMock.mock.calls.filter(([url]) =>
+        proxyPath(url).endsWith('/v1/peers'),
+      ),
     ).toHaveLength(1)
     expect(
       screen.getByText(/DNS = 9.9.9.9/, { selector: 'pre' }),
@@ -540,7 +543,7 @@ describe('monitoring and durable operations', () => {
     )
     await screen.findByText(/253 total/)
     expect(
-      fetchMock.mock.calls.some(([url]) => String(url).endsWith('/metrics')),
+      fetchMock.mock.calls.some(([url]) => proxyPath(url).endsWith('/metrics')),
     ).toBe(false)
     await user.click(screen.getByRole('button', { name: 'Metrics' }))
     await screen.findByText(/wireguard_available 1/, { selector: 'pre' })
@@ -569,11 +572,11 @@ describe('monitoring and durable operations', () => {
     const mock = vi.fn(async (input: string, options?: RequestInit) => {
       if (options?.method === 'DELETE')
         return jsonResponse(pending, 202, { 'Retry-After': '7' })
-      if (input.includes('/v1/operations/')) {
+      if (proxyPath(input).includes('/v1/operations/')) {
         completed = true
         return jsonResponse({ ...pending, status: 'complete', error: null })
       }
-      if (completed && input.includes('/v1/peers?'))
+      if (completed && proxyPath(input).includes('/v1/peers?'))
         return jsonResponse({ items: [], next_cursor: null })
       return base(input, options)
     })
@@ -628,12 +631,12 @@ describe('monitoring and durable operations', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: string, options?: RequestInit) =>
-        input.endsWith('/readyz')
+        proxyPath(input).endsWith('/readyz')
           ? jsonResponse(
               { ...health, status: 'not_ready', reason: 'state_not_converged' },
               503,
             )
-          : input.includes('/v1/peers?')
+          : proxyPath(input).includes('/v1/peers?')
             ? jsonResponse({
                 items: [
                   {

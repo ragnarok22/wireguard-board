@@ -100,7 +100,7 @@ describe('durable operation tracking', () => {
       await vi.advanceTimersByTimeAsync(7001)
     })
     expect(result.current.data?.operation.status).toBe('pending')
-    expect(result.current.error?.message).toContain('CORS')
+    expect(result.current.error?.message).toContain('proxy')
     await act(async () => {
       await vi.advanceTimersByTimeAsync(7001)
     })

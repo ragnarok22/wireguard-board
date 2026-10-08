@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { api, ApiError, serverQueryKey } from './api-client'
+import { proxyUrl, proxyPath } from '@/test/proxy-fixtures'
 import {
   createdPeer,
   health,
@@ -32,8 +33,8 @@ describe('versioned API contract', () => {
       api.peers({ ...server, url: `${server.url}/api` }),
     ).resolves.toEqual([peer, second])
     expect(mock.mock.calls.map(([url]) => url)).toEqual([
-      `${server.url}/api/v1/peers?limit=100`,
-      `${server.url}/api/v1/peers?limit=100&after=${peer.id}`,
+      proxyUrl('/v1/peers?limit=100'),
+      proxyUrl(`/v1/peers?limit=100&after=${peer.id}`),
     ])
     expect(mock.mock.calls[0][1]).toMatchObject({
       credentials: 'omit',
@@ -41,6 +42,9 @@ describe('versioned API contract', () => {
       cache: 'no-store',
     })
     expect(mock.mock.calls[0][1].headers.get('X-API-Token')).toBe(server.token)
+    expect(mock.mock.calls[0][1].headers.get('X-WireGuard-Server')).toBe(
+      `${server.url}/api`,
+    )
   })
 
   it('rejects looping cursors and does not publish a partially fetched inventory', async () => {
@@ -106,9 +110,9 @@ describe('versioned API contract', () => {
       config: configTemplate,
     })
     expect(mock.mock.calls.map(([url]) => url)).toEqual([
-      `${server.url}/v1/server`,
-      `${server.url}/v1/peers/${peer.id}`,
-      `${server.url}/v1/peers/${peer.id}/config-template`,
+      proxyUrl('/v1/server'),
+      proxyUrl(`/v1/peers/${peer.id}`),
+      proxyUrl(`/v1/peers/${peer.id}/config-template`),
     ])
   })
 
@@ -145,7 +149,7 @@ describe('versioned API contract', () => {
         key_mode: 'generated',
         address: '10.13.13.2',
       })
-      expect(mock.mock.calls[0][0]).toBe(`${server.url}/v1/peers`)
+      expect(mock.mock.calls[0][0]).toBe(proxyUrl('/v1/peers'))
     },
   )
 
@@ -167,7 +171,7 @@ describe('versioned API contract', () => {
       retryAfterMs: 5000,
     })
     expect(mock.mock.calls[2][0]).toBe(
-      `${server.url}/v1/operations/${operation.id}`,
+      proxyUrl(`/v1/operations/${operation.id}`),
     )
   })
 
@@ -247,7 +251,7 @@ describe('versioned API contract', () => {
       .mockRejectedValueOnce(new TypeError('Failed to fetch'))
       .mockRejectedValueOnce(error)
     vi.stubGlobal('fetch', mock)
-    await expect(api.peers(server)).rejects.toThrow('CORS settings')
+    await expect(api.peers(server)).rejects.toThrow('board’s proxy')
     const controller = new AbortController()
     controller.abort()
     await expect(api.peers(server, controller.signal)).rejects.toBe(error)
@@ -263,9 +267,9 @@ describe('versioned API contract', () => {
   it('tests public probes and authenticated access, including a degraded readyz', async () => {
     const mock = vi.fn().mockImplementation((url: string) =>
       Promise.resolve(
-        url.endsWith('/livez')
+        proxyPath(url).endsWith('/livez')
           ? jsonResponse(live)
-          : url.endsWith('/readyz')
+          : proxyPath(url).endsWith('/readyz')
             ? jsonResponse(
                 {
                   ...health,
@@ -274,7 +278,7 @@ describe('versioned API contract', () => {
                 },
                 503,
               )
-            : url.endsWith('/v1/server')
+            : proxyPath(url).endsWith('/v1/server')
               ? jsonResponse(serverInfo)
               : jsonResponse({ items: [], next_cursor: null }),
       ),

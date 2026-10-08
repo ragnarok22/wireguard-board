@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { api } from './api-client'
+import { proxyUrl } from '@/test/proxy-fixtures'
 import { jsonResponse, server, systemInfo, vpnStats } from '@/test/api-fixtures'
 
 describe('authenticated telemetry contracts', () => {
@@ -18,11 +19,12 @@ describe('authenticated telemetry contracts', () => {
       systemInfo,
     )
     expect(mock.mock.calls.map(([url]) => url)).toEqual([
-      `${server.url}/api/v1/stats`,
-      `${server.url}/api/v1/system`,
+      proxyUrl('/v1/stats'),
+      proxyUrl('/v1/system'),
     ])
     for (const [, options] of mock.mock.calls) {
       expect(options.headers.get('X-API-Token')).toBe(server.token)
+      expect(options.headers.get('X-WireGuard-Server')).toBe(connection.url)
       expect(options.cache).toBe('no-store')
       expect(options.credentials).toBe('omit')
       expect(options.signal).toBeInstanceOf(AbortSignal)
@@ -43,7 +45,7 @@ describe('authenticated telemetry contracts', () => {
     vi.stubGlobal('fetch', mock)
     await expect(api.stats(server, undefined, 60)).resolves.toEqual(stats)
     expect(mock.mock.calls[0][0]).toBe(
-      `${server.url}/v1/stats?handshake_window_seconds=60`,
+      proxyUrl('/v1/stats?handshake_window_seconds=60'),
     )
   })
   it('accepts CPU quota bursts above 100% and partially unavailable cgroup information', async () => {

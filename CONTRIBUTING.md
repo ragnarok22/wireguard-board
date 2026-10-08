@@ -41,10 +41,11 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-The board connects directly to API instances. See the
-[integration documentation](README.md#integration-with-wireguard-api) for CORS,
-backend compatibility and local connection setup. Automated tests use simulated
-responses and do not require a live WireGuard server or privileged networking.
+The board connects through its same-origin proxy. See the
+[integration documentation](README.md#integration-with-wireguard-api) for public
+destination requirements, backend compatibility and local connection setup.
+Automated tests use simulated responses and isolated local HTTP servers; they do
+not require a live WireGuard server or privileged networking.
 
 ## Project conventions
 
@@ -61,6 +62,9 @@ responses and do not require a live WireGuard server or privileged networking.
   fixtures containing real data and the frontend bundle.
 - Avoid automatic retries of operations that create peers. Configuration retries
   must not repeat peer creation.
+- Keep proxy destinations publicly routable, pin validated DNS addresses, preserve
+  TLS verification and reject redirects. Extend the method/route allowlist and its
+  tests together when adding API capabilities.
 - Prefer small, focused changes. Avoid unrelated refactors and dependency changes.
 - Keep `pnpm-lock.yaml` in sync when changing dependencies.
 - Fix lint findings rather than suppressing warnings to make checks pass.

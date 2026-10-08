@@ -7,11 +7,11 @@ API for managing VPN clients and checking service health.
 
 ## Project status
 
-An implemented static frontend with an English-language, responsive interface.
-The browser connects directly to each API instance without an intermediate Node
-service. The board includes a server registry, a dashboard and peer management.
-Integration is verified against simulated REST API responses; connecting real
-servers requires CORS configuration and a compatible backend version.
+A responsive English-language frontend with a same-origin Node proxy. The browser
+calls `/api/wireguard` on the board's own origin; the proxy connects to the selected
+WireGuard API. The board includes a server registry, monitoring and peer management.
+Vercel deploys the frontend and proxy together. Local development and preview use
+the same proxy handler through Vite.
 
 ## Features
 
@@ -46,9 +46,10 @@ to the selected instance:
 
 ```text
 WireGuard Board
-  ├── wireguard-api · Server A
-  ├── wireguard-api · Server B
-  └── wireguard-api · Server C
+  └── /api/wireguard · Same-origin proxy
+        ├── wireguard-api · Server A
+        ├── wireguard-api · Server B
+        └── wireguard-api · Server C
 ```
 
 ### Connecting a server
@@ -58,11 +59,11 @@ The board checks `/livez`, `/readyz`, authenticated `/v1/server` and the first
 page of `/v1/peers` before saving. A `not_ready` readiness response does not by itself
 block saving when authenticated reads succeed:
 
-| Field        | Description                                                          |
-| ------------ | -------------------------------------------------------------------- |
-| Name         | A readable name for the server in the dashboard.                     |
-| API base URL | The instance's HTTP(S) address, such as `https://vpn-a.example.com`. |
-| API token    | The value of `API_TOKEN` configured on that instance.                |
+| Field        | Description                                                        |
+| ------------ | ------------------------------------------------------------------ |
+| Name         | A readable name for the server in the dashboard.                   |
+| API base URL | The public HTTP(S) API address, such as `http://<PUBLIC-IP>:8008`. |
+| API token    | The value of `API_TOKEN` configured on that instance.              |
 
 The API listens on TCP `8008` by default. This address is separate from the VPN
 endpoint, which uses UDP `51820` by default and is configured through
@@ -70,8 +71,9 @@ endpoint, which uses UDP `51820` by default and is configured through
 
 Every `/v1` endpoint requires the `X-API-Token` header. `/livez`, `/readyz` and
 `/metrics` are public. Each instance provides interactive API documentation at `/docs`.
-The Compose deployment binds management access to loopback by default; expose a
-restricted HTTPS reverse proxy or use a tunnel accessible to the board's browser.
+The Compose deployment binds management access to loopback by default. Expose an
+API endpoint reachable from the proxy. A private LAN/VPN address or server-local
+loopback URL is not reachable through the public-destination proxy.
 
 ### Relevant endpoints
 
@@ -170,32 +172,42 @@ remain usable. The connection test does not require these collectors to be healt
   Backend sampling is independent of dashboard polling. Stale/failed samples return
   safe errors such as `telemetry_unavailable`; they are not treated as healthy zeros.
 
-### CORS and HTTPS
+### Proxy, CORS and HTTPS
 
-Each API must allow the origin serving the board. Configure CORS in the backend
-or its reverse proxy. For FastAPI, add the following after creating `app`:
+The browser sends requests only to the board's own `/api/wireguard` endpoint.
+The selected API URL is passed in `X-WireGuard-Server`, and the API path in the
+`path` query parameter. `X-API-Token` and `Idempotency-Key` are forwarded only when
+needed. Tokens are never placed in URLs. The proxy preserves response status codes,
+JSON/text bodies and `Retry-After`/`Location`; it does not retry mutations.
 
-```python
-from fastapi.middleware.cors import CORSMiddleware
+No API CORS configuration is required for this flow. A board hosted over HTTPS
+can reach a public HTTP API through the server-to-server proxy without browser
+mixed-content blocking. HTTP on the proxy-to-API connection is still unencrypted;
+use HTTPS for that connection when transporting credentials across the internet.
+HTTPS certificates must be valid for the API hostname or IP; certificate checks
+are not disabled. Clipboard access requires HTTPS or localhost.
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["https://board.example.com", "http://localhost:5173"],
-    allow_methods=["GET", "POST", "DELETE"],
-    allow_headers=["X-API-Token", "Content-Type", "Idempotency-Key"],
-    expose_headers=["Retry-After", "Location"],
-    allow_credentials=False,
-)
-```
+Enter the API's final URL. HTTP redirects are rejected. HTTP(S) URLs with a
+reverse-proxy path prefix, such as `https://vpn.example.com/api`, are supported.
+Public IPv4, native global IPv6 and hostnames resolving exclusively to public IPs
+are accepted. Loopback, private, link-local, multicast, reserved and transition
+addresses are rejected, including alternate numeric forms and mixed public/private
+DNS answers. Hostnames are resolved once per request, and the connection is pinned
+to a validated IP while retaining the original Host header and TLS identity.
 
-The middleware must also respond to `OPTIONS` preflight requests. When configuring
-CORS through a proxy, apply the headers to error responses as well. Use Vite's
-exact origin if its port changes. The board does not send cookies or follow
-redirects, so enter the API's final URL. URLs with a path prefix, such as
-`https://vpn.example.com/api`, are supported.
+The endpoint is public, with no board login or server allowlist. Authentication
+for `/v1` operations is enforced by each WireGuard API using its token; the API's
+public probes and metrics remain public. The proxy restricts methods, routes and
+query parameters to the supported API, forwards no cookies or arbitrary headers,
+and does not persist destinations or credentials or log request/response bodies.
+Server names and URLs are still saved only in the browser's local registry.
 
-A board served over HTTPS needs APIs reachable over HTTPS to avoid mixed-content
-blocking. Clipboard access requires a secure context: HTTPS or localhost.
+Requests are limited to 16 KiB, responses to 2 MiB, and each proxy request to
+10 seconds. The browser uses a 12-second deadline. Responses, including errors,
+use `Cache-Control: no-store`. Proxy errors have `proxy_*` codes and distinguish
+invalid destinations, rejected routes, network failures and timeouts from backend
+errors. Cancelling a request does not undo an operation already accepted by the API;
+the board's existing idempotency and operation tracking handle that case.
 
 ### Backend compatibility
 
@@ -287,6 +299,9 @@ src/
   test/            # Fixtures and integration tests
   assets/          # Frontend assets
 public/            # Static assets
+api/
+  wireguard.ts     # Vercel Web handler
+server/            # Public destination validation, bounded transport and Vite adapter
 ```
 
 The `@/` alias points to `src/`. Theme tokens are defined in `src/index.css`.
@@ -299,7 +314,7 @@ To add shadcn/ui components:
 pnpm dlx shadcn@latest add card input dialog
 ```
 
-## Static deployment
+## Deployment on Vercel
 
 ```bash
 pnpm install --frozen-lockfile
@@ -308,10 +323,21 @@ pnpm coverage
 pnpm build
 ```
 
-Publish the contents of `dist/` to any static hosting service. No environment
-variables are required and no tokens are included in the build; connections are
-registered through the interface. Tests do not require privileged networking or
-a live API.
+Import this repository into Vercel and use the Vite framework preset. The included
+`vercel.json` selects `pnpm build`, the `dist/` output directory and the Node function
+at `api/wireguard.ts`, with a 15-second platform limit and request cancellation.
+Use Node.js 22.12+ or a newer supported LTS release for builds and functions.
+
+There are no mandatory environment variables, preconfigured server lists or tokens
+in the build. Register public API URLs and session tokens from the interface;
+adding a new destination does not require redeploying. Production and preview
+deployments call their own same-origin proxy, so API CORS origins do not need to
+change between deployments.
+
+Uploading `dist/` alone to a static host does not deploy the proxy. Other hosting
+must provide the same `/api/wireguard` Node handler. `pnpm dev` and `pnpm preview`
+already include the local adapter. Tests use simulated APIs and isolated local
+HTTP servers; they do not require privileged networking or a live VPN API.
 
 ## Community
 

@@ -37,10 +37,17 @@ private while the report is being investigated and a fix is being prepared.
 
 ## Scope
 
-This policy covers the WireGuard Board frontend and its handling of server
-connections, credentials, client configurations and dependencies. Examples include
-cross-site scripting, unintended token or private-key exposure, and credentials
-being persisted or sent to an unintended destination.
+This policy covers the WireGuard Board frontend, its same-origin Node proxy and
+their handling of server connections, credentials, client configurations and
+dependencies. Examples include cross-site scripting, unintended token or private-key
+exposure, credentials being persisted or sent to an unintended destination, and
+proxy destination-validation bypasses.
+
+The proxy is public and accepts dynamic public destinations without a board login.
+Protected WireGuard operations still require the destination API's token. The proxy
+restricts outbound routes and methods, blocks non-public addresses, pins validated
+DNS results, rejects redirects and retains HTTPS certificate validation. Report any
+bypass of those boundaries privately using the channel above.
 
 The separate [wireguard-api](https://github.com/ragnarok22/wireguard-api) backend
 and deployment infrastructure have their own scope. Follow the affected project's

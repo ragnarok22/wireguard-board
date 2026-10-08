@@ -52,6 +52,7 @@ export const sendUpstream: SendUpstream = ({
           checkServerIdentity(hostname, certificate),
       },
       (response) => {
+        response.on('error', reject)
         const status = response.statusCode ?? 502
         if (status >= 300 && status < 400) {
           const error = new ProxyError(
@@ -77,7 +78,6 @@ export const sendUpstream: SendUpstream = ({
             )
           } else chunks.push(chunk)
         })
-        response.on('error', reject)
         response.on('end', () => {
           const resultHeaders = new Headers()
           for (const name of ['content-type', 'retry-after', 'location']) {

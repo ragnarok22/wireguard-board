@@ -3,6 +3,7 @@ import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { ServerDashboard } from '@/features/dashboard/server-dashboard'
+import { proxyPath } from './proxy-fixtures'
 import {
   health,
   jsonResponse,
@@ -16,7 +17,7 @@ import {
 
 function setup(overrides: Record<string, () => Response> = {}) {
   const mock = vi.fn(async (input: string) => {
-    const path = new URL(input).pathname
+    const path = new URL(proxyPath(input), 'http://localhost').pathname
     if (overrides[path]) return overrides[path]()
     if (path === '/v1/system') return jsonResponse(systemInfo)
     if (path === '/v1/stats') return jsonResponse(vpnStats)
@@ -171,10 +172,10 @@ describe('dashboard telemetry', () => {
     await user.click(screen.getByRole('button', { name: 'Refresh' }))
     await system.findByText('25%')
     expect(
-      mock.mock.calls.filter(([url]) => url.endsWith('/v1/system')),
+      mock.mock.calls.filter(([url]) => proxyPath(url).endsWith('/v1/system')),
     ).toHaveLength(2)
     expect(
-      mock.mock.calls.filter(([url]) => url.endsWith('/v1/stats')),
+      mock.mock.calls.filter(([url]) => proxyPath(url).endsWith('/v1/stats')),
     ).toHaveLength(2)
   })
   it('does not cap CPU bursts or fabricate counters for unsupported cgroups', async () => {
