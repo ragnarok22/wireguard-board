@@ -37,13 +37,20 @@ function ServerItem({
     enabled: !!server.token,
     refetchInterval: 30_000,
   })
-  const liveness = useQuery({ queryKey: [...serverQueryKey(server), 'liveness'], queryFn: ({ signal }) => api.live(server, signal), enabled: !!server.token, refetchInterval: 30_000 })
+  const liveness = useQuery({
+    queryKey: [...serverQueryKey(server), 'liveness'],
+    queryFn: ({ signal }) => api.live(server, signal),
+    enabled: !!server.token,
+    refetchInterval: 30_000,
+  })
   const status = !server.token
     ? 'Locked'
     : health.isPending
       ? 'Checking'
       : health.error
-        ? liveness.isSuccess ? 'Alive · readiness unavailable' : 'Unreachable'
+        ? liveness.isSuccess
+          ? 'Alive · readiness unavailable'
+          : 'Unreachable'
         : health.data.status === 'ready'
           ? 'Ready'
           : 'Not ready'

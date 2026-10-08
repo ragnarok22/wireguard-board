@@ -150,7 +150,19 @@ export function CreatePeerDialog({
               message={`${errorMessage(create.error)} Retry this same request to recover its peer and operation identity. Generated credentials cannot be recovered if the first response was lost.`}
             />
           )}
-          {create.error instanceof ApiError && create.error.status >= 400 && create.error.status < 500 && <Button variant="outline" onClick={() => { setAttempt(undefined); create.reset() }}>Edit request</Button>}
+          {create.error instanceof ApiError &&
+            create.error.status >= 400 &&
+            create.error.status < 500 && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setAttempt(undefined)
+                  create.reset()
+                }}
+              >
+                Edit request
+              </Button>
+            )}
           <div className="dialog-actions">
             <Button
               variant="outline"
@@ -230,7 +242,9 @@ export function CreatePeerDialog({
                   private key only once.
                 </span>
               </div>
-              <div className={`config-preview ${status !== 'complete' ? 'config-pending' : ''}`}>
+              <div
+                className={`config-preview ${status !== 'complete' ? 'config-pending' : ''}`}
+              >
                 {status === 'complete' && (
                   <div className="qr-panel">
                     <QRCodeSVG

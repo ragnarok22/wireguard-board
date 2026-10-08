@@ -17,18 +17,21 @@ servers requires CORS configuration and a compatible backend version.
 
 - **Multiple servers:** add, edit and remove server connections, each with its own
   name, API base URL and credentials.
-- **Overview:** check server availability and peer counts.
+- **Overview:** check readiness, peer counts, VPN endpoint, address pool and capacity.
 - **Peer management:** list, create, inspect and delete VPN clients on the selected
   server. A peer represents a WireGuard device or client.
 - **Client configurations:** download a ready-to-import `.conf` file when creating
   a peer with API-generated keys, copy the configuration or scan its QR code.
   QR codes are generated locally without sending keys to external services.
 - **Monitoring:** view traffic statistics and the latest handshake reported by
-  the API.
+  the API; inspect, copy or download Prometheus metrics on demand.
+- **Durable operations:** follow pending creation and revocation until the backend
+  verifies the change in WireGuard.
 - **Refresh:** automatic polling every 15 seconds in the active view, plus manual
   refresh. Polling pauses when the browser tab is in the background.
 - **Sessions:** lock a connection to discard its token and cached data.
-- **Search:** filter peers by IP address, public key, endpoint or recent activity.
+- **Search:** filter peers by IP address, UUID, public key, endpoint, activity or
+  lifecycle state (`pending`, `active`, `deleting`).
 
 Adding a server to the dashboard connects an existing `wireguard-api` instance.
 Server deployment and network configuration are managed in the backend project.
@@ -50,7 +53,9 @@ WireGuard Board
 ### Connecting a server
 
 Select **Add server**, enter the following details and select **Test & save**.
-Both `/health` and authenticated access to `/peers` are checked before saving:
+The board checks `/livez`, `/readyz`, authenticated `/v1/server` and the first
+page of `/v1/peers` before saving. A `not_ready` readiness response does not by itself
+block saving when authenticated reads succeed:
 
 | Field        | Description                                                          |
 | ------------ | -------------------------------------------------------------------- |
@@ -62,25 +67,31 @@ The API listens on TCP `8008` by default. This address is separate from the VPN
 endpoint, which uses UDP `51820` by default and is configured through
 `SERVER_ENDPOINT` in the backend.
 
-Operations on `/peers` require the `X-API-Token` header. The `/health` and `/metrics`
-endpoints are public. Each instance provides interactive API documentation at
-`/docs`.
+Every `/v1` endpoint requires the `X-API-Token` header. `/livez`, `/readyz` and
+`/metrics` are public. Each instance provides interactive API documentation at `/docs`.
+The Compose deployment binds management access to loopback by default; expose a
+restricted HTTPS reverse proxy or use a tunnel accessible to the board's browser.
 
 ### Relevant endpoints
 
-| Method   | Endpoint                     | Dashboard usage                                                |
-| -------- | ---------------------------- | -------------------------------------------------------------- |
-| `GET`    | `/health`                    | Check availability, version, uptime, interface and peer count. |
-| `GET`    | `/peers`                     | List clients and their current statistics.                     |
-| `POST`   | `/peers`                     | Create a client and receive its details as JSON.               |
-| `GET`    | `/peers/{public_key}`        | Inspect a specific client.                                     |
-| `GET`    | `/peers/{public_key}/config` | Retrieve a partial configuration as JSON.                      |
-| `DELETE` | `/peers/{public_key}`        | Remove a client from the server.                               |
+| Method   | Endpoint                              | Dashboard usage                                              |
+| -------- | ------------------------------------- | ------------------------------------------------------------ |
+| `GET`    | `/v1/server`                          | Server identity, endpoint, pool and address reservations.    |
+| `GET`    | `/v1/peers?limit=100&after=<UUID>`    | Load all pages of desired peers and their observations.      |
+| `POST`   | `/v1/peers`                           | Create a generated-key or external-key client.               |
+| `GET`    | `/v1/peers/{peer_id}`                 | Inspect a UUID peer, its lifecycle and applied state.        |
+| `GET`    | `/v1/peers/{peer_id}/config-template` | Retrieve a complete template with a private-key placeholder. |
+| `DELETE` | `/v1/peers/{peer_id}`                 | Revoke a client immediately or start a pending revocation.   |
+| `GET`    | `/v1/operations/{operation_id}`       | Follow pending operations until complete or cancelled.       |
+| `GET`    | `/livez`                              | Process liveness and application version.                    |
+| `GET`    | `/readyz`                             | Storage health and WireGuard convergence, including reasons. |
+| `GET`    | `/metrics`                            | Read public Prometheus exposition as text on demand.         |
 
-The API returns a generated private key only when creating the client and does
-not retain it. Save the complete configuration at that point. The configuration
-endpoint for an existing peer returns the server's `[Peer]` block; it cannot
-recover the private key or provide a complete, ready-to-import file on its own.
+The initial generated-key response includes the private key and complete `client_config`
+once, even when accepted as pending. Save them immediately. An existing peer's
+configuration template includes both `[Interface]` and `[Peer]`, with
+`PrivateKey = <YOUR_PRIVATE_KEY>`. Replace that placeholder locally with your retained
+private key before import. The API has no private-key recovery endpoint.
 
 ### Persistence and configurations
 
@@ -90,24 +101,42 @@ recover the private key or provide a complete, ready-to-import file on its own.
   connections that require entering their tokens again.
 - Queries are isolated by server and session. Updating credentials, locking a
   connection or removing it discards its cache.
-- Creation uses `POST /peers`, followed by `GET /peers/{public_key}/config`, to
-  combine the generated private key with the actual `[Peer]` block. This follows
-  the backend's default configuration: the first assigned address, DNS `1.1.1.1`
-  and the routes in the block returned by the API.
+- Creation uses `POST /v1/peers` with `key_mode: "generated"` or `"external"`, an
+  optional bare IPv4 `address`, and a distinct `Idempotency-Key`. External mode
+  requires a canonical WireGuard public key. CIDRs and `allowed_ips` are not accepted.
+- The board downloads `client_config` exactly as returned by the backend, retaining
+  its DNS, endpoint and routes. It does not rebuild the file or make a second request
+  to obtain the generated configuration.
 - Download the file before closing the dialog. Private keys are not saved in
   browser storage and cannot be recovered later through the API.
-- If the second step fails, **Retry configuration** repeats only the GET request.
-  **Save creation response** preserves the private key and address so you can
-  configure the client.
-- Creation and deletion requests are not retried automatically. If a creation
-  response is lost, refresh the peer list before creating another peer.
-- Existing peers offer only a partial configuration, clearly identified as such.
-  When supplying your own public key, configure the private key on the device.
+- A `202` creation is pending, not a completed setup. **Download .conf**, **Copy config**
+  and **Save creation response** let you retain credentials immediately; wait for
+  operation completion before importing or activating the tunnel. Its QR is shown
+  only after completion. `cancelled` means creation was superseded by deletion.
+- Creation and deletion are not retried automatically. **Retry same request** resends
+  the identical body and idempotency key after a creation failure. A replay recovers
+  peer/operation identity but returns no private key or complete generated config.
+  If the initial generated response was lost, revoke the recovered peer, wait for
+  completed revocation, then create a replacement with a new request key.
+- A `204` deletion is complete. A `202` deletion stays pending and retains the address
+  reservation until the operation confirms removal. Operation progress stays visible
+  after the dialog closes and refreshes the inventory when terminal.
+- Operation polling follows `Retry-After`, defaulting to five seconds. Tracking is
+  scoped to the server/session, retained while switching servers, and cleared when
+  locking, changing credentials, removing a connection or reloading. The backend
+  continues reconciliation independently of the board.
+- Existing peers offer **View config template**, **Copy template** and **Download
+  template .conf**. When supplying your own public key, configure the private key
+  on the device using this template.
 
 Traffic is shown from the server's perspective as cumulative values from the
 WireGuard snapshot, not per-second rates. **Recent** means a handshake occurred
 within the last three minutes; it does not represent a permanent connection or
 confirm reachability.
+Missing observations display as unavailable rather than invented zero traffic.
+The readiness probe returns `503` with `status: "not_ready"` when the node is not
+converged; this is distinct from process liveness. Prometheus `NaN` peer counts and
+`-1` pending-operation counts also indicate unavailable data.
 
 ### CORS and HTTPS
 
@@ -121,7 +150,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://board.example.com", "http://localhost:5173"],
     allow_methods=["GET", "POST", "DELETE"],
-    allow_headers=["X-API-Token", "Content-Type"],
+    allow_headers=["X-API-Token", "Content-Type", "Idempotency-Key"],
+    expose_headers=["Retry-After", "Location"],
     allow_credentials=False,
 )
 ```
@@ -137,17 +167,14 @@ blocking. Clipboard access requires a secure context: HTTPS or localhost.
 
 ### Backend compatibility
 
-The integration follows the endpoints documented in `wireguard-api`. The `main`
-revision reviewed during implementation (`b703a9c6`) had an internal incompatibility:
-`api.py` expected `restore_peers`, `create_peer` and `delete_peer` methods, and peer
-dictionaries; `wireguard.py` exposed `add_peer`, `remove_peer` and `PeerStats`
-objects. Use a backend version with consistent operations and serialization.
+The board targets the documented versioned `/v1` API. Upgrade the backend and board
+together: the old `/health`, unversioned `/peers`, public-key URLs and partial-config
+contracts are incompatible. Peer detail, template and deletion URLs now use UUIDs.
+Existing saved server metadata remains usable; reconnect with the deployment token.
 
-Public keys are encoded when included in URLs. The backend and its proxy must
-accept keys containing `/`, `+` and `=` in the detail, configuration and deletion
-endpoints. If the router decodes `%2F` as a path separator before matching the
-route, it must support that case. Tests verify the URL encoding emitted by the
-frontend.
+The backend owns the entire IPv4-only interface inventory and returns client routes
+for `0.0.0.0/0`. Follow its README for deployment upgrades and legacy inventory
+migration; the board does not migrate backend storage or server identity.
 
 ## Stack
 

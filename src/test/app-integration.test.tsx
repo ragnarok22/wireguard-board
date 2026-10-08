@@ -287,6 +287,35 @@ describe('workspace workflows', () => {
 })
 
 describe('one-time peer configuration', () => {
+  it('allows editing a definitively rejected request and creates a new request key', async () => {
+    const mock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            code: 'invalid_input',
+            detail: 'Address must be a usable client IP inside the pool',
+          },
+          422,
+        ),
+      )
+      .mockResolvedValueOnce(jsonResponse(createdPeer, 201))
+    vi.stubGlobal('fetch', mock)
+    const user = userEvent.setup()
+    renderApp(<CreatePeerDialog server={server} onClose={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Create peer' }))
+    await user.click(
+      await screen.findByRole('button', { name: 'Edit request' }),
+    )
+    await user.click(screen.getByText('Advanced options'))
+    await user.type(screen.getByLabelText(/VPN address/), '10.13.13.2')
+    await user.click(screen.getByRole('button', { name: 'Create peer' }))
+    await screen.findByRole('heading', { name: 'Your peer is ready' })
+    expect(mock.mock.calls[0][1].headers.get('Idempotency-Key')).not.toBe(
+      mock.mock.calls[1][1].headers.get('Idempotency-Key'),
+    )
+    expect(JSON.parse(mock.mock.calls[1][1].body).address).toBe('10.13.13.2')
+  })
   it('downloads and copies the generated config, then discards the one-time key on close', async () => {
     mockApi()
     saveServers([server])
@@ -391,19 +420,17 @@ describe('one-time peer configuration', () => {
   })
 
   it('creates a custom-key peer without fetching or pretending to have its private key', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        jsonResponse(
-          {
-            ...createdPeer,
-            peer: { ...peer, address: '10.13.13.9' },
-            private_key: null,
-            client_config: null,
-          },
-          201,
-        ),
-      )
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(
+        {
+          ...createdPeer,
+          peer: { ...peer, address: '10.13.13.9' },
+          private_key: null,
+          client_config: null,
+        },
+        201,
+      ),
+    )
     vi.stubGlobal('fetch', fetchMock)
     const user = userEvent.setup()
     renderApp(<CreatePeerDialog server={server} onClose={vi.fn()} />)
