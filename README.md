@@ -7,7 +7,7 @@ This template provides a minimal setup to get React working in Vite with HMR and
 Tailwind CSS 4 is configured through the Vite plugin. The shadcn/ui theme and
 tokens live in `src/index.css`, with the `radix-nova` style and neutral colors.
 Dark theme tokens are activated by adding the `dark` class to `<html>`.
-The Vite starter styles live in `src/App.css` inside a CSS layer so Tailwind
+The Vite starter styles live in `src/app.css` inside a CSS layer so Tailwind
 utilities can override them without changing the shadcn theme tokens.
 
 The `@/` alias points to `src/`. The Button component is ready to use:
@@ -15,7 +15,7 @@ The `@/` alias points to `src/`. The Button component is ready to use:
 ```tsx
 import { Button } from '@/components/ui/button'
 
-<Button className="mt-4">Connect</Button>
+;<Button className="mt-4">Connect</Button>
 ```
 
 Add more components with:
