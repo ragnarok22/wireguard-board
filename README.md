@@ -24,7 +24,8 @@ servers requires CORS configuration and a compatible backend version.
   a peer with API-generated keys, copy the configuration or scan its QR code.
   QR codes are generated locally without sending keys to external services.
 - **Monitoring:** view traffic statistics and the latest handshake reported by
-  the API; inspect, copy or download Prometheus metrics on demand.
+  the API, receive/send rates, CPU, memory and data-filesystem usage; inspect, copy
+  or download Prometheus metrics on demand.
 - **Durable operations:** follow pending creation and revocation until the backend
   verifies the change in WireGuard.
 - **Refresh:** automatic polling every 15 seconds in the active view, plus manual
@@ -74,18 +75,20 @@ restricted HTTPS reverse proxy or use a tunnel accessible to the board's browser
 
 ### Relevant endpoints
 
-| Method   | Endpoint                              | Dashboard usage                                              |
-| -------- | ------------------------------------- | ------------------------------------------------------------ |
-| `GET`    | `/v1/server`                          | Server identity, endpoint, pool and address reservations.    |
-| `GET`    | `/v1/peers?limit=100&after=<UUID>`    | Load all pages of desired peers and their observations.      |
-| `POST`   | `/v1/peers`                           | Create a generated-key or external-key client.               |
-| `GET`    | `/v1/peers/{peer_id}`                 | Inspect a UUID peer, its lifecycle and applied state.        |
-| `GET`    | `/v1/peers/{peer_id}/config-template` | Retrieve a complete template with a private-key placeholder. |
-| `DELETE` | `/v1/peers/{peer_id}`                 | Revoke a client immediately or start a pending revocation.   |
-| `GET`    | `/v1/operations/{operation_id}`       | Follow pending operations until complete or cancelled.       |
-| `GET`    | `/livez`                              | Process liveness and application version.                    |
-| `GET`    | `/readyz`                             | Storage health and WireGuard convergence, including reasons. |
-| `GET`    | `/metrics`                            | Read public Prometheus exposition as text on demand.         |
+| Method   | Endpoint                              | Dashboard usage                                                    |
+| -------- | ------------------------------------- | ------------------------------------------------------------------ |
+| `GET`    | `/v1/server`                          | Server identity, endpoint, pool and address reservations.          |
+| `GET`    | `/v1/stats`                           | VPN-wide counts, handshakes, traffic rates and pending operations. |
+| `GET`    | `/v1/system`                          | Current-cgroup CPU/memory, data filesystem and runtime details.    |
+| `GET`    | `/v1/peers?limit=100&after=<UUID>`    | Load all pages of desired peers and their observations.            |
+| `POST`   | `/v1/peers`                           | Create a generated-key or external-key client.                     |
+| `GET`    | `/v1/peers/{peer_id}`                 | Inspect a UUID peer, its lifecycle and applied state.              |
+| `GET`    | `/v1/peers/{peer_id}/config-template` | Retrieve a complete template with a private-key placeholder.       |
+| `DELETE` | `/v1/peers/{peer_id}`                 | Revoke a client immediately or start a pending revocation.         |
+| `GET`    | `/v1/operations/{operation_id}`       | Follow pending operations until complete or cancelled.             |
+| `GET`    | `/livez`                              | Process liveness and application version.                          |
+| `GET`    | `/readyz`                             | Storage health and WireGuard convergence, including reasons.       |
+| `GET`    | `/metrics`                            | Read public Prometheus exposition as text on demand.               |
 
 The initial generated-key response includes the private key and complete `client_config`
 once, even when accepted as pending. Save them immediately. An existing peer's
@@ -129,14 +132,43 @@ private key before import. The API has no private-key recovery endpoint.
   template .conf**. When supplying your own public key, configure the private key
   on the device using this template.
 
-Traffic is shown from the server's perspective as cumulative values from the
-WireGuard snapshot, not per-second rates. **Recent** means a handshake occurred
-within the last three minutes; it does not represent a permanent connection or
-confirm reachability.
+Peer-row traffic is shown from the server's perspective as cumulative values from
+the WireGuard snapshot. **Recent** means a handshake occurred within the last three
+minutes; it does not represent a permanent connection or confirm reachability.
 Missing observations display as unavailable rather than invented zero traffic.
 The readiness probe returns `503` with `status: "not_ready"` when the node is not
 converged; this is distinct from process liveness. Prometheus `NaN` peer counts and
 `-1` pending-operation counts also indicate unavailable data.
+
+### VPN and system telemetry
+
+The dashboard queries authenticated `/v1/stats` and `/v1/system` independently every
+15 seconds. Manual **Refresh** updates both. Queries are isolated by server/session
+and pause background polling. Failures show a panel-specific retry; previously cached
+telemetry is hidden after a failed refresh, while peer management and the other panel
+remain usable. The connection test does not require these collectors to be healthy.
+
+- **VPN telemetry** uses the backend's aggregates rather than summing the displayed
+  peer list: registered/state/applied/observed/unmanaged counts, recent and never
+  handshakes, latest handshake, address reservations, and pending operations.
+- RX is client upload received by the server; TX is client download sent by the server.
+  Cards show measured bytes/second and accumulated bytes for the current interface,
+  including unmanaged peers. Counters can reset and are not persisted historical totals.
+  Rates are `null` while warming up or after counter/membership changes; the board
+  displays `—`, distinguishing unavailable rates from a measured `0 B/s`.
+- **System resources** shows effective CPU cores, cumulative CPU time, CPU percentage,
+  memory usage/effective capacity/configured limit, filesystem usage/free space,
+  and OS/kernel/architecture/Python/API versions and process uptime.
+- CPU and memory describe `current_cgroup`, normally the container in Docker, not
+  host-wide usage. A CPU quota of 0.5 cores can reach 100%; short bursts may exceed
+  100% and are displayed without capping. `warming_up`, partial telemetry and missing
+  resources are identified explicitly. A missing configured memory limit is distinct
+  from unavailable memory data.
+- Disk describes `data_filesystem`: the filesystem containing `WG_DATA_DIR`, not
+  the data directory's size or a container quota.
+- Both panels show the backend sample timestamp, age at fetch and measured interval.
+  Backend sampling is independent of dashboard polling. Stale/failed samples return
+  safe errors such as `telemetry_unavailable`; they are not treated as healthy zeros.
 
 ### CORS and HTTPS
 

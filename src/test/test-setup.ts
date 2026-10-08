@@ -3,9 +3,9 @@ import { cleanup } from '@testing-library/react'
 import { afterEach, beforeEach, vi } from 'vitest'
 
 beforeEach(() => {
-  localStorage.clear()
+  if (typeof localStorage !== 'undefined') localStorage.clear()
 })
 afterEach(() => {
-  cleanup()
+  if (typeof document !== 'undefined') cleanup()
   vi.unstubAllGlobals()
 })

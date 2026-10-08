@@ -124,10 +124,11 @@ export function ServerForm({
                 required
                 value={url}
                 onChange={(event) => setUrl(event.target.value)}
-                placeholder="https://vpn.example.com"
+                placeholder="http://your-public-ip:8008"
               />
               <span className="field-hint">
-                The HTTP API address, not the WireGuard VPN endpoint.
+                The public API address, not the VPN endpoint. Requests go
+                through the board’s proxy.
               </span>
             </label>
             <label className="field">

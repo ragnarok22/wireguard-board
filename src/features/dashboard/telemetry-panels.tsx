@@ -119,10 +119,12 @@ export function VpnTelemetry({ query }: { query: UseQueryResult<VpnStats> }) {
   )
 }
 
+const percentFormatter = new Intl.NumberFormat('en', {
+  maximumFractionDigits: 1,
+})
+
 function percent(value: number | null) {
-  return value === null
-    ? '—'
-    : `${new Intl.NumberFormat('en', { maximumFractionDigits: 1 }).format(value)}%`
+  return value === null ? '—' : `${percentFormatter.format(value)}%`
 }
 function bytes(value: number | null) {
   return value === null ? 'Unavailable' : formatBytes(value)
@@ -224,9 +226,11 @@ export function SystemTelemetry({
             <div>
               <dt>Configured memory limit</dt>
               <dd>
-                {system.memory.limit_bytes === null
-                  ? 'No configured limit'
-                  : formatBytes(system.memory.limit_bytes)}
+                {system.memory.source === 'unavailable'
+                  ? 'Unavailable'
+                  : system.memory.limit_bytes === null
+                    ? 'No configured limit'
+                    : formatBytes(system.memory.limit_bytes)}
               </dd>
             </div>
             <div>

@@ -40,17 +40,21 @@ async function request<T>(
     : timeout
   try {
     const headers = new Headers(options.headers)
+    headers.set('X-WireGuard-Server', server.url)
     headers.set('Accept', schema === 'text' ? 'text/plain' : 'application/json')
     if (!publicRequest) headers.set('X-API-Token', server.token ?? '')
     if (options.body) headers.set('Content-Type', 'application/json')
-    const response = await fetch(`${server.url}${path}`, {
-      ...options,
-      signal,
-      credentials: 'omit',
-      redirect: 'error',
-      cache: 'no-store',
-      headers,
-    })
+    const response = await fetch(
+      `/api/wireguard?path=${encodeURIComponent(path)}`,
+      {
+        ...options,
+        signal,
+        credentials: 'omit',
+        redirect: 'error',
+        cache: 'no-store',
+        headers,
+      },
+    )
     if (!response.ok && !(acceptNotReady && response.status === 503)) {
       const body: unknown = await response.json().catch(() => null)
       let message = `The API returned HTTP ${response.status}.`
@@ -85,7 +89,7 @@ async function request<T>(
         'The server took too long to respond. Try refreshing its status.',
       )
     throw new ApiError(
-      'Could not reach the API. Check its URL, your network and the server’s CORS settings.',
+      'Could not reach the board’s proxy. Check your network and the board deployment.',
     )
   }
 }
