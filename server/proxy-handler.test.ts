@@ -178,6 +178,43 @@ describe('bounded API routing', () => {
 })
 
 describe('proxy request contract', () => {
+  it.each(['empty-string', 'empty-stream'])(
+    'forwards a bodyless DELETE represented by %s',
+    async (mode) => {
+      const body =
+        mode === 'empty-string'
+          ? ''
+          : new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.close()
+              },
+            })
+      const input = request(`/v1/peers/${peer.id}`, {
+        method: 'DELETE',
+        body,
+        duplex: 'half',
+      } as RequestInit)
+      expect(input.body).not.toBeNull()
+      const send = vi.fn<SendUpstream>(async () => upstream(null, 204))
+      const response = await handleProxy(input, { resolve, send })
+      expect(response.status).toBe(204)
+      expect(send).toHaveBeenCalledOnce()
+      expect(send.mock.calls[0][0]).toMatchObject({
+        method: 'DELETE',
+        body: undefined,
+      })
+    },
+  )
+  it('rejects actual DELETE payload bytes before contacting the API', async () => {
+    const send = vi.fn()
+    const response = await handleProxy(
+      request(`/v1/peers/${peer.id}`, { method: 'DELETE', body: '{}' }),
+      { resolve, send },
+    )
+    expect(response.status).toBe(400)
+    expect((await response.json()).code).toBe('proxy_invalid_body')
+    expect(send).not.toHaveBeenCalled()
+  })
   it('pins DNS once, retains prefixes and forwards only selected headers', async () => {
     const resolver = vi.fn(async () => [publicIp])
     const send = vi.fn<SendUpstream>(async () => upstream())

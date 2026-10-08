@@ -13,18 +13,11 @@ async function readBody(
   request: Request,
   signal: AbortSignal,
 ): Promise<Uint8Array | undefined> {
-  if (request.method !== 'POST') {
-    if (request.body)
-      throw new ProxyError(
-        400,
-        'proxy_invalid_body',
-        'Only peer creation accepts a request body.',
-      )
-    return undefined
-  }
+  const creation = request.method === 'POST'
   if (
+    creation &&
     request.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase() !==
-    'application/json'
+      'application/json'
   )
     throw new ProxyError(
       415,
@@ -32,6 +25,7 @@ async function readBody(
       'Peer creation requires a JSON request body.',
     )
   const reader = request.body?.getReader()
+  if (!reader && !creation) return undefined
   if (!reader)
     throw new ProxyError(
       400,
@@ -49,6 +43,15 @@ async function readBody(
     while (true) {
       const chunk = await reader.read()
       if (chunk.done) break
+      if (!creation && chunk.value.byteLength > 0) {
+        void reader.cancel().catch(() => {})
+        throw new ProxyError(
+          400,
+          'proxy_invalid_body',
+          'Only peer creation accepts a request body.',
+        )
+      }
+      if (chunk.value.byteLength === 0) continue
       size += chunk.value.byteLength
       if (size > maxRequestBytes) {
         void reader.cancel().catch(() => {})
@@ -64,6 +67,7 @@ async function readBody(
     signal.removeEventListener('abort', cancel)
     reader.releaseLock()
   }
+  if (!creation) return undefined
   const body = Buffer.concat(chunks)
   try {
     const value: unknown = JSON.parse(body.toString('utf8'))
