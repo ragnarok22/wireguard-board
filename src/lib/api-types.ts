@@ -12,52 +12,83 @@ export type ServerConnection = ServerMetadata & {
   session: string
 }
 
-const counter = z
-  .union([z.number(), z.string().regex(/^\d+$/)])
-  .pipe(z.coerce.number<number | string>().finite().nonnegative())
-const handshake = z
-  .union([counter, z.null(), z.literal('(none)')])
-  .transform((value) => (typeof value === 'number' && value > 0 ? value : null))
-
-export const peerSchema = z.object({
+const counter = z.number().int().nonnegative()
+export const observationSchema = z.object({
   public_key: z.string().min(1),
   allowed_ips: z.array(z.string()),
-  endpoint: z
-    .string()
-    .nullable()
-    .transform((value) => (value === '(none)' ? null : value)),
-  latest_handshake: handshake,
+  endpoint: z.string().nullable(),
+  latest_handshake: counter.nullable(),
   transfer_rx: counter,
   transfer_tx: counter,
-  persistent_keepalive: z
-    .union([counter, z.literal('off')])
-    .transform((value) => (value === 'off' ? 0 : value)),
+  persistent_keepalive: counter,
 })
-
-export const peersSchema = z.array(peerSchema)
+export const peerSchema = z.object({
+  id: z.uuid(),
+  public_key: z.string().min(1),
+  address: z.ipv4(),
+  state: z.enum(['pending', 'active', 'deleting']),
+  created_at: z.number().finite().nonnegative(),
+  applied: z.boolean(),
+  observation: observationSchema.nullable(),
+})
+export const peersSchema = z.object({
+  items: z.array(peerSchema),
+  next_cursor: z.uuid().nullable(),
+})
 export type Peer = z.infer<typeof peerSchema>
 
-export const healthSchema = z.object({
-  status: z.enum(['healthy', 'unhealthy']),
+export const livenessSchema = z.object({
+  status: z.literal('alive'),
+  version: z.string(),
+})
+export const readinessSchema = z.object({
+  status: z.enum(['ready', 'not_ready']),
   version: z.string(),
   uptime_seconds: z.number().nonnegative(),
-  wireguard_interface: z.string(),
-  wireguard_available: z.boolean(),
-  peer_count: z.number().int().nonnegative(),
+  interface: z.string(),
+  reason: z.string().nullable(),
 })
+export const serverInfoSchema = z.object({
+  public_key: z.string().min(1),
+  endpoint: z.string().min(1),
+  interface: z.string(),
+  address: z.string(),
+  pool: z.string(),
+  capacity: counter,
+  reserved: counter,
+  available: counter,
+})
+export type ServerInfo = z.infer<typeof serverInfoSchema>
+export const operationSchema = z.object({
+  id: z.uuid(),
+  peer_id: z.uuid(),
+  kind: z.enum(['create', 'delete']),
+  status: z.enum(['pending', 'complete', 'cancelled']),
+  public_key: z.string().min(1),
+  address: z.ipv4(),
+  error: z.string().nullable(),
+  created_at: z.number().finite().nonnegative(),
+  request_key: z.string().nullable(),
+  fingerprint: z.string().nullable(),
+})
+export type Operation = z.infer<typeof operationSchema>
+export type OperationResponse = { operation: Operation; retryAfterMs: number }
 
 export const createdPeerSchema = z.object({
-  public_key: z.string().min(1),
-  allowed_ips: z.array(z.string()).min(1),
-  private_key: z.string().nullable().optional(),
+  peer: peerSchema,
+  operation: operationSchema,
+  private_key: z.string().nullable(),
+  client_config: z.string().min(1).nullable(),
+  replayed: z.boolean(),
 })
 
-export const partialConfigSchema = z.object({
+export const configTemplateSchema = z.object({
   config: z.string().min(1),
-  note: z.string().optional(),
 })
-export type CreatedPeer = z.infer<typeof createdPeerSchema>
-export type PeerInput = { public_key?: string; allowed_ips?: string[] }
+export type CreatedPeer = z.infer<typeof createdPeerSchema> & { retryAfterMs: number }
+export type PeerInput =
+  | { key_mode: 'generated'; address?: string }
+  | { key_mode: 'external'; public_key: string; address?: string }
 
 export function normalizeApiUrl(value: string): string {
   let url: URL

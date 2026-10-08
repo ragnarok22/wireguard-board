@@ -1,121 +1,118 @@
 # WireGuard Board
 
-Dashboard web para administrar múltiples servidores de WireGuard desde una sola
-interfaz. Cada servidor expone su propia instancia de
-[wireguard-api](https://github.com/ragnarok22/wireguard-api), que permite gestionar
-clientes VPN y consultar el estado del servicio mediante una API REST.
+A web dashboard for managing multiple WireGuard servers from a single interface.
+Each server runs its own instance of
+[wireguard-api](https://github.com/ragnarok22/wireguard-api), which provides a REST
+API for managing VPN clients and checking service health.
 
-## Estado del proyecto
+## Project status
 
-Frontend estático implementado con interfaz en inglés y diseño responsive.
-Conecta directamente desde el navegador a cada instancia de la API, sin un
-servicio Node intermedio. Incluye registro de servidores, dashboard y gestión
-de peers. La integración se verifica con respuestas simuladas del contrato REST;
-para usar servidores reales, configura CORS y una versión compatible del backend.
+An implemented static frontend with an English-language, responsive interface.
+The browser connects directly to each API instance without an intermediate Node
+service. The board includes a server registry, a dashboard and peer management.
+Integration is verified against simulated REST API responses; connecting real
+servers requires CORS configuration and a compatible backend version.
 
-## Funcionalidades
+## Features
 
-- **Gestión multiserver:** registrar, editar y quitar servidores del dashboard,
-  con un nombre, una URL base de la API y credenciales independientes.
-- **Vista general:** consultar la disponibilidad de los servidores y la cantidad
-  de peers en cada uno.
-- **Gestión de peers:** listar, crear, inspeccionar y eliminar clientes VPN en
-  el servidor seleccionado. Un peer representa un dispositivo o cliente de
-  WireGuard.
-- **Configuración de clientes:** descargar un archivo `.conf` listo para importar
-  al crear un peer con claves generadas por la API, copiarlo o escanear su QR.
-  El código QR se genera localmente, sin enviar las claves a servicios externos.
-- **Monitoreo:** visualizar información de tráfico y del último handshake
-  disponible en la API.
-- **Actualización:** consultas cada 15 segundos en la vista activa y actualización
-  manual. El polling se detiene cuando la pestaña está en segundo plano.
-- **Sesiones:** bloquear una conexión para descartar su token y los datos en caché.
-- **Búsqueda:** filtrar peers por IP, clave, endpoint o actividad reciente.
+- **Multiple servers:** add, edit and remove server connections, each with its own
+  name, API base URL and credentials.
+- **Overview:** check server availability and peer counts.
+- **Peer management:** list, create, inspect and delete VPN clients on the selected
+  server. A peer represents a WireGuard device or client.
+- **Client configurations:** download a ready-to-import `.conf` file when creating
+  a peer with API-generated keys, copy the configuration or scan its QR code.
+  QR codes are generated locally without sending keys to external services.
+- **Monitoring:** view traffic statistics and the latest handshake reported by
+  the API.
+- **Refresh:** automatic polling every 15 seconds in the active view, plus manual
+  refresh. Polling pauses when the browser tab is in the background.
+- **Sessions:** lock a connection to discard its token and cached data.
+- **Search:** filter peers by IP address, public key, endpoint or recent activity.
 
-Registrar un servidor en el dashboard significa conectar una instancia existente
-de `wireguard-api`. Su despliegue y la configuración de red se realizan en el
-proyecto del backend.
+Adding a server to the dashboard connects an existing `wireguard-api` instance.
+Server deployment and network configuration are managed in the backend project.
 
-## Integración con wireguard-api
+## Integration with wireguard-api
 
-Repositorio del backend: <https://github.com/ragnarok22/wireguard-api>.
+Backend repository: <https://github.com/ragnarok22/wireguard-api>.
 
-El modelo de integración es que cada servidor de WireGuard tenga su
-propia instancia de la API y que el dashboard dirija cada operación a la
-instancia seleccionada:
+Each WireGuard server has its own API instance. The dashboard sends each operation
+to the selected instance:
 
 ```text
 WireGuard Board
-  ├── wireguard-api · Servidor A
-  ├── wireguard-api · Servidor B
-  └── wireguard-api · Servidor C
+  ├── wireguard-api · Server A
+  ├── wireguard-api · Server B
+  └── wireguard-api · Server C
 ```
 
-### Conexión a un servidor
+### Connecting a server
 
-Pulsa **Add server**, introduce estos datos y selecciona **Test & save**. Se comprueban
-tanto `/health` como el acceso autenticado a `/peers` antes de guardar:
+Select **Add server**, enter the following details and select **Test & save**.
+Both `/health` and authenticated access to `/peers` are checked before saving:
 
-| Dato               | Descripción                                                                 |
-| ------------------ | --------------------------------------------------------------------------- |
-| Nombre             | Identificador legible dentro del dashboard.                                 |
-| URL base de la API | Dirección HTTP(S) de la instancia, por ejemplo `https://vpn-a.example.com`. |
-| Token de API       | Valor de `API_TOKEN` configurado en esa instancia.                          |
+| Field        | Description                                                          |
+| ------------ | -------------------------------------------------------------------- |
+| Name         | A readable name for the server in the dashboard.                     |
+| API base URL | The instance's HTTP(S) address, such as `https://vpn-a.example.com`. |
+| API token    | The value of `API_TOKEN` configured on that instance.                |
 
-La API escucha por defecto en TCP `8008`. Esta dirección es distinta del endpoint
-VPN, que utiliza UDP `51820` por defecto y se configura en el backend mediante
-`SERVER_ENDPOINT`.
+The API listens on TCP `8008` by default. This address is separate from the VPN
+endpoint, which uses UDP `51820` by default and is configured through
+`SERVER_ENDPOINT` in the backend.
 
-Las operaciones sobre `/peers` requieren el encabezado `X-API-Token`.
-Los endpoints `/health` y `/metrics` son públicos. La documentación interactiva
-de cada instancia está disponible en `/docs`.
+Operations on `/peers` require the `X-API-Token` header. The `/health` and `/metrics`
+endpoints are public. Each instance provides interactive API documentation at
+`/docs`.
 
-### Endpoints relevantes
+### Relevant endpoints
 
-| Método   | Endpoint                     | Uso en el dashboard                                                      |
-| -------- | ---------------------------- | ------------------------------------------------------------------------ |
-| `GET`    | `/health`                    | Consultar disponibilidad, versión, uptime, interfaz y cantidad de peers. |
-| `GET`    | `/peers`                     | Listar clientes y sus estadísticas actuales.                             |
-| `POST`   | `/peers`                     | Crear un cliente y recibir sus datos en JSON.                            |
-| `GET`    | `/peers/{public_key}`        | Consultar un cliente específico.                                         |
-| `GET`    | `/peers/{public_key}/config` | Obtener una configuración parcial en JSON.                               |
-| `DELETE` | `/peers/{public_key}`        | Eliminar un cliente del servidor.                                        |
+| Method   | Endpoint                     | Dashboard usage                                                |
+| -------- | ---------------------------- | -------------------------------------------------------------- |
+| `GET`    | `/health`                    | Check availability, version, uptime, interface and peer count. |
+| `GET`    | `/peers`                     | List clients and their current statistics.                     |
+| `POST`   | `/peers`                     | Create a client and receive its details as JSON.               |
+| `GET`    | `/peers/{public_key}`        | Inspect a specific client.                                     |
+| `GET`    | `/peers/{public_key}/config` | Retrieve a partial configuration as JSON.                      |
+| `DELETE` | `/peers/{public_key}`        | Remove a client from the server.                               |
 
-La API devuelve la clave privada generada únicamente al crear el cliente y no
-la conserva. La descarga de la configuración completa debe realizarse en ese
-momento. El endpoint de configuración de un peer existente devuelve el bloque
-`[Peer]` del servidor; no recupera la clave privada ni devuelve por sí solo un
-archivo completo listo para importar.
+The API returns a generated private key only when creating the client and does
+not retain it. Save the complete configuration at that point. The configuration
+endpoint for an existing peer returns the server's `[Peer]` block; it cannot
+recover the private key or provide a complete, ready-to-import file on its own.
 
-### Persistencia y configuraciones
+### Persistence and configurations
 
-- `localStorage` guarda únicamente nombre, URL e ID de cada servidor, con un esquema
-  versionado. El registro es local a ese navegador y origen, no se comparte entre usuarios.
-- Los tokens permanecen en memoria. Tras recargar o abrir otra pestaña, las conexiones
-  aparecen bloqueadas y requieren introducir el token nuevamente.
-- Las consultas se aíslan por servidor y sesión. Cambiar las credenciales, bloquear o
-  quitar una conexión descarta su caché.
-- La creación usa `POST /peers` y después `GET /peers/{public_key}/config` para combinar
-  la clave privada generada con el bloque `[Peer]` real. Se reproduce la configuración
-  por defecto del backend: primera dirección asignada, DNS `1.1.1.1` y rutas del bloque
-  devuelto por la API.
-- Descarga el archivo antes de cerrar el diálogo. Las claves privadas no se guardan en
-  browser storage ni se pueden recuperar más tarde desde la API.
-- Si falla el segundo paso, **Retry configuration** repite solo el GET. **Save creation
-  response** permite conservar la clave privada y dirección para configurar el cliente.
-- Las operaciones de creación y eliminación no tienen reintentos automáticos. Si se
-  pierde la respuesta de una creación, actualiza la lista antes de volver a crear.
-- Los peers existentes solo ofrecen una configuración parcial, identificada como tal.
-  Para claves públicas propias, la clave privada se configura en el dispositivo.
+- `localStorage` saves only each server's name, URL and ID using a versioned schema.
+  The registry is local to that browser and origin; it is not shared between users.
+- Tokens stay in memory. Reloading the page or opening another tab restores locked
+  connections that require entering their tokens again.
+- Queries are isolated by server and session. Updating credentials, locking a
+  connection or removing it discards its cache.
+- Creation uses `POST /peers`, followed by `GET /peers/{public_key}/config`, to
+  combine the generated private key with the actual `[Peer]` block. This follows
+  the backend's default configuration: the first assigned address, DNS `1.1.1.1`
+  and the routes in the block returned by the API.
+- Download the file before closing the dialog. Private keys are not saved in
+  browser storage and cannot be recovered later through the API.
+- If the second step fails, **Retry configuration** repeats only the GET request.
+  **Save creation response** preserves the private key and address so you can
+  configure the client.
+- Creation and deletion requests are not retried automatically. If a creation
+  response is lost, refresh the peer list before creating another peer.
+- Existing peers offer only a partial configuration, clearly identified as such.
+  When supplying your own public key, configure the private key on the device.
 
-El tráfico se muestra desde la perspectiva del servidor, como valores acumulados del
-snapshot de WireGuard, no tasas por segundo. **Recent** significa un handshake en los
-últimos tres minutos; no representa una conexión permanente ni confirma accesibilidad.
+Traffic is shown from the server's perspective as cumulative values from the
+WireGuard snapshot, not per-second rates. **Recent** means a handshake occurred
+within the last three minutes; it does not represent a permanent connection or
+confirm reachability.
 
-### CORS y HTTPS
+### CORS and HTTPS
 
-Cada API debe permitir el origen donde se sirve el board. Configura CORS en el backend
-o en su reverse proxy. Ejemplo para FastAPI, después de crear `app`:
+Each API must allow the origin serving the board. Configure CORS in the backend
+or its reverse proxy. For FastAPI, add the following after creating `app`:
 
 ```python
 from fastapi.middleware.cors import CORSMiddleware
@@ -129,79 +126,80 @@ app.add_middleware(
 )
 ```
 
-El middleware debe responder también al preflight `OPTIONS`. Aplica las cabeceras
-CORS a las respuestas de error si lo configuras en un proxy. Usa el origen exacto de
-Vite si su puerto cambia. El board no envía cookies ni sigue redirecciones: introduce
-la URL final de la API. URLs con un prefijo, como `https://vpn.example.com/api`, están
-soportadas.
+The middleware must also respond to `OPTIONS` preflight requests. When configuring
+CORS through a proxy, apply the headers to error responses as well. Use Vite's
+exact origin if its port changes. The board does not send cookies or follow
+redirects, so enter the API's final URL. URLs with a path prefix, such as
+`https://vpn.example.com/api`, are supported.
 
-Un board servido por HTTPS necesita APIs accesibles por HTTPS para evitar bloqueo de
-mixed content. La copia al portapapeles requiere un contexto seguro (HTTPS o localhost).
+A board served over HTTPS needs APIs reachable over HTTPS to avoid mixed-content
+blocking. Clipboard access requires a secure context: HTTPS or localhost.
 
-### Compatibilidad del backend
+### Backend compatibility
 
-La integración sigue los endpoints documentados en `wireguard-api`. El `main`
-revisado durante la implementación (`b703a9c6`) tenía una incompatibilidad interna:
-`api.py` esperaba métodos `restore_peers`, `create_peer` y `delete_peer`, y diccionarios
-de peers; `wireguard.py` exponía `add_peer`, `remove_peer` y objetos `PeerStats`.
-Utiliza una versión del backend con esas operaciones y serialización coherentes.
+The integration follows the endpoints documented in `wireguard-api`. The `main`
+revision reviewed during implementation (`b703a9c6`) had an internal incompatibility:
+`api.py` expected `restore_peers`, `create_peer` and `delete_peer` methods, and peer
+dictionaries; `wireguard.py` exposed `add_peer`, `remove_peer` and `PeerStats`
+objects. Use a backend version with consistent operations and serialization.
 
-Las claves públicas se codifican al incluirlas en una URL. El backend y su proxy
-deben aceptar claves con `/`, `+` y `=` en los endpoints de detalle/config/eliminación;
-si el router decodifica `%2F` como separador antes de resolver la ruta, debe soportar
-ese caso. Los tests verifican la codificación emitida por el frontend.
+Public keys are encoded when included in URLs. The backend and its proxy must
+accept keys containing `/`, `+` and `=` in the detail, configuration and deletion
+endpoints. If the router decodes `%2F` as a path separator before matching the
+route, it must support that case. Tests verify the URL encoding emitted by the
+frontend.
 
 ## Stack
 
-- **React 19** y **TypeScript** para la interfaz.
-- **Vite 8** para desarrollo y compilación.
-- **Tailwind CSS 4** para estilos.
-- **shadcn/ui** y **Radix UI** para componentes.
-- **Lucide React** para iconos.
-- **TanStack Query** para consultas y mutaciones por servidor.
-- **Zod** para validar las respuestas del backend.
-- **qrcode.react** para códigos QR locales.
-- **Oxlint** para análisis estático.
-- **Prettier** para formato de código.
-- **Vitest**, **Testing Library** y **happy-dom** para pruebas y coverage.
-- **pnpm** para gestión de dependencias.
+- **React 19** and **TypeScript** for the interface.
+- **Vite 8** for development and production builds.
+- **Tailwind CSS 4** for styling.
+- **shadcn/ui** and **Radix UI** for components.
+- **Lucide React** for icons.
+- **TanStack Query** for per-server queries and mutations.
+- **Zod** for validating backend responses.
+- **qrcode.react** for local QR codes.
+- **Oxlint** for static analysis.
+- **Prettier** for code formatting.
+- **Vitest**, **Testing Library** and **happy-dom** for tests and coverage.
+- **pnpm** for dependency management.
 
-## Desarrollo local
+## Local development
 
-### Requisitos
+### Requirements
 
-- Node.js compatible con Vite 8: `20.19+` o `22.12+`.
+- A Node.js version supported by Vite 8: `20.19+` or `22.12+`.
 - pnpm.
-- Una o más instancias de `wireguard-api` para conectar
-  servidores reales. Consulta su README para desplegarlas.
+- One or more `wireguard-api` instances to connect real servers. See the backend's
+  README for deployment instructions.
 
-### Instalación y ejecución
+### Installation and startup
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-Abre la URL que indique Vite en la terminal.
+Open the URL printed by Vite in the terminal.
 
-### Comandos disponibles
+### Available commands
 
-| Comando             | Descripción                                                                     |
-| ------------------- | ------------------------------------------------------------------------------- |
-| `pnpm dev`          | Inicia el servidor de desarrollo.                                               |
-| `pnpm format`       | Aplica el formato de Prettier.                                                  |
-| `pnpm format:check` | Verifica el formato sin modificar archivos.                                     |
-| `pnpm lint`         | Analiza el código con Oxlint y aplica las correcciones automáticas disponibles. |
-| `pnpm lint:check`   | Verifica el código con Oxlint sin modificar archivos.                           |
-| `pnpm typecheck`    | Comprueba los tipos de la aplicación y la configuración con TypeScript.         |
-| `pnpm build`        | Comprueba los tipos con TypeScript y genera la compilación en `dist/`.          |
-| `pnpm preview`      | Sirve la compilación localmente para revisarla.                                 |
-| `pnpm test`         | Ejecuta pruebas unitarias y de integración con API simulada.                    |
-| `pnpm coverage`     | Ejecuta pruebas y genera informes en `coverage/`.                               |
-| `pnpm check`        | Ejecuta lint, formato, tipos y pruebas sin modificar archivos.                  |
+| Command             | Description                                                         |
+| ------------------- | ------------------------------------------------------------------- |
+| `pnpm dev`          | Start the development server.                                       |
+| `pnpm format`       | Apply Prettier formatting.                                          |
+| `pnpm format:check` | Check formatting without modifying files.                           |
+| `pnpm lint`         | Run Oxlint and apply available automatic fixes.                     |
+| `pnpm lint:check`   | Run Oxlint without modifying files.                                 |
+| `pnpm typecheck`    | Check application and configuration types with TypeScript.          |
+| `pnpm build`        | Check types and generate the production build in `dist/`.           |
+| `pnpm preview`      | Serve the production build locally for review.                      |
+| `pnpm test`         | Run unit and integration tests against a simulated API.             |
+| `pnpm coverage`     | Run tests and generate coverage reports in `coverage/`.             |
+| `pnpm check`        | Run lint, formatting, type checks and tests without changing files. |
 
-Los comandos de lint fallan si encuentran errores o advertencias. Para verificar
-el código sin modificar archivos:
+Lint commands fail on errors or warnings. To verify the project without modifying
+source files:
 
 ```bash
 pnpm format:check
@@ -212,37 +210,37 @@ pnpm coverage
 pnpm build
 ```
 
-## Estructura del proyecto
+## Project structure
 
 ```text
 src/
-  app.tsx          # Componente principal
-  app.css          # Estilos del componente principal
-  main.tsx         # Punto de entrada
-  index.css        # Estilos globales y tokens del tema
-  components/ui/   # Componentes de shadcn/ui
+  app.tsx          # Main component
+  app.css          # Application styles
+  main.tsx         # Entry point
+  index.css        # Global styles and theme tokens
+  components/ui/   # shadcn/ui components
   features/
-    servers/       # Registro y configuración de conexiones
-    dashboard/     # Estado, estadísticas y lista de peers
-    peers/         # Creación, configuración, detalle y eliminación
-  hooks/           # Registro de servidores y sesión en memoria
-  lib/             # Cliente API, validación, storage, configuración y formato
-  test/            # Fixtures y pruebas de integración
-  assets/          # Recursos del frontend
-public/            # Recursos estáticos
+    servers/       # Connection registration and settings
+    dashboard/     # Health, statistics and peer list
+    peers/         # Creation, configuration, details and deletion
+  hooks/           # Server registry and in-memory sessions
+  lib/             # API client, validation, storage, configuration and formatting
+  test/            # Fixtures and integration tests
+  assets/          # Frontend assets
+public/            # Static assets
 ```
 
-El alias `@/` apunta a `src/`. Los tokens del tema están definidos en
-`src/index.css`. La interfaz utiliza un tema claro. Los archivos y carpetas propios
-usan kebab-case; los archivos de configuración conservan las convenciones de sus herramientas.
+The `@/` alias points to `src/`. Theme tokens are defined in `src/index.css`.
+The interface uses a light theme. Project source files and folders use kebab-case;
+configuration files retain their tools' naming conventions.
 
-Para agregar componentes de shadcn/ui:
+To add shadcn/ui components:
 
 ```bash
 pnpm dlx shadcn@latest add card input dialog
 ```
 
-## Despliegue estático
+## Static deployment
 
 ```bash
 pnpm install --frozen-lockfile
@@ -251,6 +249,7 @@ pnpm coverage
 pnpm build
 ```
 
-Publica el contenido de `dist/` en cualquier hosting estático. No hay variables de
-entorno necesarias ni tokens incluidos en el build; las conexiones se registran desde
-la interfaz. Los tests no requieren privilegios de red ni una API real.
+Publish the contents of `dist/` to any static hosting service. No environment
+variables are required and no tokens are included in the build; connections are
+registered through the interface. Tests do not require privileged networking or
+a live API.
