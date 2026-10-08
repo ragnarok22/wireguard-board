@@ -284,6 +284,7 @@ h1 {
   display: flex;
   gap: 10px;
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 [data-slot='button'] {
   min-height: 38px;
@@ -552,6 +553,27 @@ h1 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 15px;
   margin: 21px 0 28px;
+}
+.server-information {
+  margin-top: 16px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #fbfcfb;
+}
+.server-information .detail-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.server-information .detail-grid > div:last-child {
+  grid-column: 1 / -1;
+}
+.server-information .full-key {
+  font-family: monospace;
+}
+section[aria-label='Operation progress'] {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
 }
 .stat-card {
   border: 1px solid var(--border);
@@ -1013,6 +1035,9 @@ fieldset {
   grid-template-columns: 195px minmax(0, 1fr);
   gap: 17px;
 }
+.config-preview.config-pending {
+  grid-template-columns: 1fr;
+}
 .qr-panel {
   display: flex;
   flex-direction: column;
@@ -1072,7 +1097,7 @@ pre {
   color: #44614e;
   overflow-wrap: anywhere;
 }
-.partial-config {
+.config-template {
   display: flex;
   flex-direction: column;
   gap: 17px;
@@ -1119,6 +1144,9 @@ pre {
   }
   .stat-grid {
     gap: 10px;
+  }
+  .server-information .detail-grid {
+    grid-template-columns: 1fr;
   }
   .stat-card {
     padding: 16px 13px;

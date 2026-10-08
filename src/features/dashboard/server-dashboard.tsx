@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { LockKeyhole, Plus, Radio, RefreshCw, Settings2 } from 'lucide-react'
+import { Activity, LockKeyhole, Plus, Radio, RefreshCw, Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ErrorNotice } from '@/components/ui/feedback'
 import { api, errorMessage, serverQueryKey } from '@/lib/api-client'
@@ -76,6 +76,7 @@ export function ServerDashboard({
           <p>Keep your network close. Your configuration, under control.</p>
         </div>
         <div className="heading-actions">
+          <Button variant="outline" onClick={() => setDialog('metrics')}><Activity />Metrics</Button>
           <Button variant="outline" onClick={onSettings}>
             <Settings2 />
             Connection
@@ -144,7 +145,7 @@ export function ServerDashboard({
         />
       )}
       {info.data && (
-        <section className="notice" aria-label="VPN server information">
+        <section className="server-information" aria-label="VPN server information">
           <dl className="detail-grid">
             <div>
               <dt>VPN endpoint</dt>
@@ -168,9 +169,6 @@ export function ServerDashboard({
               <dd className="full-key">{info.data.public_key}</dd>
             </div>
           </dl>
-          <Button variant="outline" onClick={() => setDialog('metrics')}>
-            View metrics
-          </Button>
         </section>
       )}
       <TrackedOperations server={server} />

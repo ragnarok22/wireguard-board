@@ -188,7 +188,7 @@ export function PeerDetailsDialog({
               <CopyButton text={data.public_key} label="Copy public key" />
             </div>
             {showConfig ? (
-              <div className="partial-config">
+              <div className="config-template">
                 <div className="notice">
                   This is a configuration template, not a ready-to-import client
                   file. Replace &lt;YOUR_PRIVATE_KEY&gt; locally with your

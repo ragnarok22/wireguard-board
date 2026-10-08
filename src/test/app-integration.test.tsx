@@ -507,7 +507,7 @@ describe('monitoring and durable operations', () => {
     expect(
       fetchMock.mock.calls.some(([url]) => String(url).endsWith('/metrics')),
     ).toBe(false)
-    await user.click(screen.getByRole('button', { name: 'View metrics' }))
+    await user.click(screen.getByRole('button', { name: 'Metrics' }))
     await screen.findByText(/wireguard_available 1/, { selector: 'pre' })
     await user.click(screen.getByRole('button', { name: 'Copy metrics' }))
     expect(clipboard).toHaveBeenCalledWith(
