@@ -49,6 +49,18 @@ restricts outbound routes and methods, blocks non-public addresses, pins validat
 DNS results, rejects redirects and retains HTTPS certificate validation. Report any
 bypass of those boundaries privately using the channel above.
 
+On Vercel, a shared Firewall rate-limit check runs before DNS resolution and API
+access. Only the deployment host and trusted client IP are passed to the counter
+SDK; API tokens, cookies and destination URLs are excluded. Missing configuration
+or an unavailable counter service fails closed. Production responses also carry
+the policies in `vercel.json`, including same-origin script/connect CSP and framing
+protection. Local Vite does not emulate production rate-limit counters.
+
+Server transfer files contain metadata only. Imports are bounded and schema-checked,
+extra credential fields are rejected, and new connections start locked. The deployed
+smoke runner uses one disposable peer and cleans up only its newly created identity;
+generated keys/configuration contents are not logged or written to disk.
+
 The separate [wireguard-api](https://github.com/ragnarok22/wireguard-api) backend
 and deployment infrastructure have their own scope. Follow the affected project's
 reporting guidance for backend vulnerabilities. If the issue crosses the frontend

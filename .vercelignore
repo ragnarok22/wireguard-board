@@ -1,0 +1,10 @@
+.git
+.github
+.env*
+.vercel
+coverage
+node_modules
+*.log
+**/*.test.*
+src/test
+scripts

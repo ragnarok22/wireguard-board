@@ -17,6 +17,8 @@ the same proxy handler through Vite.
 
 - **Multiple servers:** add, edit and remove server connections, each with its own
   name, API base URL and credentials.
+- **Portable registry:** import or export server metadata without tokens or keys.
+  Imported connections start locked and are merged without replacing existing URLs.
 - **Overview:** check readiness, peer counts, VPN endpoint, address pool and capacity.
 - **Peer management:** list, create, inspect and delete VPN clients on the selected
   server. A peer represents a WireGuard device or client.
@@ -239,8 +241,8 @@ migration; the board does not migrate backend storage or server identity.
 
 ### Requirements
 
-- A Node.js version supported by Vite 8: `20.19+` or `22.12+`.
-- pnpm.
+- Node.js 24 LTS, matching CI and the native TypeScript operator scripts.
+- pnpm `11.25.0`, pinned in `package.json`.
 - One or more `wireguard-api` instances to connect real servers. See the backend's
   README for deployment instructions.
 
@@ -255,19 +257,21 @@ Open the URL printed by Vite in the terminal.
 
 ### Available commands
 
-| Command             | Description                                                         |
-| ------------------- | ------------------------------------------------------------------- |
-| `pnpm dev`          | Start the development server.                                       |
-| `pnpm format`       | Apply Prettier formatting.                                          |
-| `pnpm format:check` | Check formatting without modifying files.                           |
-| `pnpm lint`         | Run Oxlint and apply available automatic fixes.                     |
-| `pnpm lint:check`   | Run Oxlint without modifying files.                                 |
-| `pnpm typecheck`    | Check application and configuration types with TypeScript.          |
-| `pnpm build`        | Check types and generate the production build in `dist/`.           |
-| `pnpm preview`      | Serve the production build locally for review.                      |
-| `pnpm test`         | Run unit and integration tests against a simulated API.             |
-| `pnpm coverage`     | Run tests and generate coverage reports in `coverage/`.             |
-| `pnpm check`        | Run lint, formatting, type checks and tests without changing files. |
+| Command                   | Description                                                         |
+| ------------------------- | ------------------------------------------------------------------- |
+| `pnpm dev`                | Start the development server.                                       |
+| `pnpm format`             | Apply Prettier formatting.                                          |
+| `pnpm format:check`       | Check formatting without modifying files.                           |
+| `pnpm lint`               | Run Oxlint and apply available automatic fixes.                     |
+| `pnpm lint:check`         | Run Oxlint without modifying files.                                 |
+| `pnpm typecheck`          | Check application and configuration types with TypeScript.          |
+| `pnpm build`              | Check types and generate the production build in `dist/`.           |
+| `pnpm preview`            | Serve the production build locally for review.                      |
+| `pnpm test`               | Run unit and integration tests against a simulated API.             |
+| `pnpm coverage`           | Run tests and generate coverage reports in `coverage/`.             |
+| `pnpm check`              | Run lint, formatting, type checks and tests without changing files. |
+| `pnpm smoke:deployment`   | Exercise the deployed board and clean up a disposable test peer.    |
+| `pnpm firewall:configure` | Stage the Vercel-backed proxy rate-limit rule.                      |
 
 Lint commands fail on errors or warnings. To verify the project without modifying
 source files:
@@ -302,6 +306,7 @@ public/            # Static assets
 api/
   wireguard.ts     # Vercel Web handler
 server/            # Public destination validation, bounded transport and Vite adapter
+scripts/           # Firewall setup and deployed smoke-test runner
 ```
 
 The `@/` alias points to `src/`. Theme tokens are defined in `src/index.css`.
@@ -326,7 +331,7 @@ pnpm build
 Import this repository into Vercel and use the Vite framework preset. The included
 `vercel.json` selects `pnpm build`, the `dist/` output directory and the Node function
 at `api/wireguard.ts`, with a 15-second platform limit and request cancellation.
-Use Node.js 22.12+ or a newer supported LTS release for builds and functions.
+Use Node.js 24 LTS for builds, functions and operator scripts.
 
 There are no mandatory environment variables, preconfigured server lists or tokens
 in the build. Register public API URLs and session tokens from the interface;
@@ -334,10 +339,123 @@ adding a new destination does not require redeploying. Production and preview
 deployments call their own same-origin proxy, so API CORS origins do not need to
 change between deployments.
 
+Enable Vercel's automatic system environment variables and publish the rate-limit
+rule below before using the deployed proxy. Protected preview deployments also
+need **Protection Bypass for Automation** enabled for the Firewall SDK's internal
+counter checks, as described in the [Vercel rate-limiting SDK documentation](https://vercel.com/docs/vercel-firewall/vercel-waf/rate-limiting-sdk).
+
 Uploading `dist/` alone to a static host does not deploy the proxy. Other hosting
 must provide the same `/api/wireguard` Node handler. `pnpm dev` and `pnpm preview`
 already include the local adapter. Tests use simulated APIs and isolated local
 HTTP servers; they do not require privileged networking or a live VPN API.
+
+### Proxy rate limiting
+
+The proxy uses `@vercel/firewall` and Vercel-managed counters, not an in-memory
+counter or a new application database. The default rule allows **240 requests per
+60 seconds per client IP per region**. Requests share a bucket across the caller's
+servers, so switching destinations or tokens does not reset the limit. Tune the
+request count for larger workspaces or multiple users behind the same NAT.
+
+Authenticate and link the Vercel project, then stage the rule:
+
+```bash
+vercel login
+vercel link
+pnpm firewall:configure
+vercel firewall diff
+vercel firewall publish --yes
+```
+
+If the named **WireGuard proxy** rule already exists, use
+`pnpm firewall:configure --update` to update it instead of creating another one.
+The setup command stages one rule with rate-limit ID `wireguard-proxy`; inspect the
+draft before publishing because Vercel publishes all pending firewall changes.
+Hobby supports one rate-limit rule; use this rule rather than creating duplicates.
+
+The handler checks the shared counter before resolving DNS or calling an API. It
+passes only the deployment host and Vercel-supplied client IP to the counter SDK,
+excluding API tokens, cookies, destinations and idempotency keys. Limit responses
+use HTTP `429`, `Retry-After: 60` and `Cache-Control: no-store`. A missing rule,
+missing platform context or counter-service failure produces a `503` without
+contacting the API. Checks have a one-second deadline and are skipped by local Vite
+development/preview. Vercel counts are regional, not a single global quota.
+
+SDK checks run inside the function using Vercel's shared firewall counters. They
+bound upstream usage; individual requests still invoke the function. This setup
+uses the SDK rule and does not require an additional path-based counting rule.
+
+### Security headers
+
+`vercel.json` applies CSP, framing protection, `nosniff`, `Referrer-Policy`,
+Permissions Policy and HSTS. CSP restricts scripts and connections to the board's
+own origin, with no inline-script allowance. Inline styles remain allowed for
+React/Radix component styling. Fonts are local, and QR codes are generated locally.
+Vite preview sends the same policies except HSTS so they can be verified over
+localhost HTTP; development omits the restrictive CSP for Vite's HMR tooling.
+
+### Server import and export
+
+Use **Import / export** in the workspace header. **Export servers** downloads
+`wireguard-servers.json` with a versioned list of `id`, `name` and `url` only.
+The file contains no API tokens, private keys, client configurations or session
+identifiers. Keep it as a local backup or transfer it to another browser.
+
+Import accepts JSON files up to 1 MiB and 250 entries. URLs are validated and
+normalized; duplicates in the file are collapsed and URLs already registered are
+skipped. Confirm the preview to merge the new connections. New browser IDs are
+generated, new connections start locked, and existing connections and their active
+tokens are preserved. Import does not contact any API. Files containing token or
+other extra fields are rejected rather than loaded as credentials.
+
+## Automation
+
+`.github/workflows/checks.yml` runs on pushes to `main` and pull requests. It uses
+Node.js 24, the pinned pnpm version and a frozen lockfile; checks lint and format;
+runs tests with coverage thresholds; and typechecks/builds the frontend and proxy.
+Coverage reports are uploaded as a seven-day artifact. Workflow actions are pinned
+to commit SHAs and permissions are limited to reading repository contents.
+
+Dependabot checks npm/pnpm dependencies and GitHub Actions weekly. Routine minor
+and patch dependency updates are grouped, while major npm upgrades arrive
+separately. Updates go through the same PR checks; they are not auto-merged.
+
+### Deployed smoke test
+
+Use a test WireGuard API reachable through the public-destination proxy. Copy
+`.env.smoke.example` to `.env.smoke.local` and configure:
+
+| Variable              | Purpose                                                                                     |
+| --------------------- | ------------------------------------------------------------------------------------------- |
+| `SMOKE_BOARD_URL`     | HTTPS origin of the deployed board. Localhost HTTP is accepted for preview checks.          |
+| `SMOKE_API_URL`       | Public HTTP(S) address of the test WireGuard API.                                           |
+| `SMOKE_API_TOKEN`     | Token for the test API. Keep it in the gitignored local file or GitHub environment secrets. |
+| `SMOKE_BYPASS_SECRET` | Optional Vercel Deployment Protection bypass secret for protected deployments.              |
+
+```bash
+pnpm smoke:deployment
+```
+
+The runner verifies deployment headers, liveness/readiness, authenticated server
+information, paginated inventory and text metrics. It creates one generated-key
+peer, validates its returned client configuration, replays exactly the same
+idempotency key/body, follows pending application and checks the peer is applied.
+It then revokes that exact newly created UUID and verifies its removal. Cleanup
+runs even when later assertions fail. An identity that existed in the initial
+inventory is never deleted. Polling honors `Retry-After`, with bounded deadlines;
+the test server must have at most 2,000 peers.
+
+The runner does not log tokens, private keys or configuration contents and does
+not write generated credentials to disk. If no identity can be recovered after
+a lost creation response, it reports the non-secret request key for investigation.
+If cleanup cannot complete, it reports the exact disposable UUID to revoke manually.
+The configuration response is verified by this HTTP smoke test; browser download,
+copy and QR behavior are covered by the UI integration tests.
+
+To run it in GitHub, configure a `wireguard-smoke` environment with the two URL
+variables and the token/bypass secrets above. Manually dispatch **Deployment smoke
+test** from `main`. It is not run on pull requests or automatically against live
+servers. The workflow serializes runs so smoke tests do not overlap.
 
 ## Community
 

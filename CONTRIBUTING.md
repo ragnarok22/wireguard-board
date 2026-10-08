@@ -97,6 +97,17 @@ pnpm lint
 
 For documentation-only changes, run `pnpm format:check`.
 
+CI uses Node.js 24 and the pnpm version pinned in `package.json`. Changes to proxy
+rate limiting must preserve shared counters, trusted-IP handling and credential
+redaction. Changes to metadata transfer must keep imported servers locked and
+exclude credentials from exports. Security-header changes must stay consistent
+between `vercel.json` and `server/security-headers.ts`.
+
+The deployed smoke test is a separate, manually dispatched workflow using a test
+API. It creates and revokes one disposable peer, so use the documented test settings
+and do not run it against an unspecified server. Ordinary PR checks need no live
+API or Vercel credentials.
+
 ## Pull requests
 
 1. Open a pull request against `main` with a clear, descriptive title.
