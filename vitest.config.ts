@@ -1,0 +1,28 @@
+import { defineConfig, mergeConfig } from 'vitest/config'
+import viteConfig from './vite.config.ts'
+
+export default mergeConfig(
+  viteConfig,
+  defineConfig({
+    test: {
+      environment: 'happy-dom',
+      setupFiles: ['./src/test/test-setup.ts'],
+      clearMocks: true,
+      restoreMocks: true,
+      coverage: {
+        provider: 'v8',
+        include: [
+          'src/lib/api-client.ts',
+          'src/lib/api-types.ts',
+          'src/lib/client-config.ts',
+          'src/lib/server-storage.ts',
+          'src/lib/formatters.ts',
+          'src/features/**/*.tsx',
+          'src/hooks/*.ts',
+          'src/app.tsx',
+        ],
+        reporter: ['text', 'html', 'lcov'],
+      },
+    },
+  }),
+)
