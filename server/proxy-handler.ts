@@ -9,7 +9,10 @@ import { sendUpstream, type SendUpstream } from './upstream-request.ts'
 
 export const maxRequestBytes = 16 * 1024
 
-async function readBody(request: Request): Promise<Uint8Array | undefined> {
+async function readBody(
+  request: Request,
+  signal: AbortSignal,
+): Promise<Uint8Array | undefined> {
   if (request.method !== 'POST') {
     if (request.body)
       throw new ProxyError(
@@ -36,6 +39,11 @@ async function readBody(request: Request): Promise<Uint8Array | undefined> {
       'Peer creation requires a JSON request body.',
     )
   const chunks: Uint8Array[] = []
+  const cancel = () => {
+    void reader.cancel(signal.reason).catch(() => {})
+  }
+  signal.addEventListener('abort', cancel, { once: true })
+  if (signal.aborted) cancel()
   let size = 0
   try {
     while (true) {
@@ -53,6 +61,7 @@ async function readBody(request: Request): Promise<Uint8Array | undefined> {
       chunks.push(chunk.value)
     }
   } finally {
+    signal.removeEventListener('abort', cancel)
     reader.releaseLock()
   }
   const body = Buffer.concat(chunks)
@@ -74,10 +83,10 @@ export async function withSignal<T>(
   promise: Promise<T>,
   signal: AbortSignal,
 ): Promise<T> {
-  signal.throwIfAborted()
   return new Promise<T>((resolve, reject) => {
     const abort = () => reject(signal.reason)
-    signal.addEventListener('abort', abort, { once: true })
+    if (signal.aborted) abort()
+    else signal.addEventListener('abort', abort, { once: true })
     promise
       .then(resolve, reject)
       .finally(() => signal.removeEventListener('abort', abort))
@@ -132,7 +141,7 @@ export async function handleProxy(
       headers['Idempotency-Key'] = key
       headers['Content-Type'] = 'application/json'
     }
-    const body = await withSignal(readBody(request), signal)
+    const body = await withSignal(readBody(request, signal), signal)
     const address = await withSignal(
       resolvePublicTarget(target, dependencies.resolve),
       signal,

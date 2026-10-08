@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 import type { IncomingMessage } from 'node:http'
 import type { RequestOptions } from 'node:https'
-import type { PeerCertificate } from 'node:tls'
+import type { DetailedPeerCertificate as PeerCertificate } from 'node:tls'
 import { expect, it, vi } from 'vitest'
 
 const { transport } = vi.hoisted(() => ({ transport: vi.fn() }))
