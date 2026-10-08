@@ -49,11 +49,11 @@ WireGuard Board
 
 Para cada servidor se necesitará:
 
-| Dato | Descripción |
-| --- | --- |
-| Nombre | Identificador legible dentro del dashboard. |
+| Dato               | Descripción                                                                 |
+| ------------------ | --------------------------------------------------------------------------- |
+| Nombre             | Identificador legible dentro del dashboard.                                 |
 | URL base de la API | Dirección HTTP(S) de la instancia, por ejemplo `https://vpn-a.example.com`. |
-| Token de API | Valor de `API_TOKEN` configurado en esa instancia. |
+| Token de API       | Valor de `API_TOKEN` configurado en esa instancia.                          |
 
 La API escucha por defecto en TCP `8008`. Esta dirección es distinta del endpoint
 VPN, que utiliza UDP `51820` por defecto y se configura en el backend mediante
@@ -65,16 +65,16 @@ de cada instancia está disponible en `/docs`.
 
 ### Endpoints relevantes
 
-| Método | Endpoint | Uso en el dashboard |
-| --- | --- | --- |
-| `GET` | `/health` | Consultar disponibilidad, versión, uptime, interfaz y cantidad de peers. |
-| `GET` | `/peers` | Listar clientes y sus estadísticas actuales. |
-| `POST` | `/peers` | Crear un cliente y recibir sus datos en JSON. |
-| `POST` | `/peers?format=config` | Crear un cliente y recibir su configuración completa como texto. |
-| `GET` | `/peers/{public_key}` | Consultar un cliente específico. |
-| `GET` | `/peers/{public_key}/config` | Obtener una configuración parcial en JSON. |
-| `DELETE` | `/peers/{public_key}` | Eliminar un cliente del servidor. |
-| `GET` | `/metrics` | Consultar métricas en formato Prometheus. |
+| Método   | Endpoint                     | Uso en el dashboard                                                      |
+| -------- | ---------------------------- | ------------------------------------------------------------------------ |
+| `GET`    | `/health`                    | Consultar disponibilidad, versión, uptime, interfaz y cantidad de peers. |
+| `GET`    | `/peers`                     | Listar clientes y sus estadísticas actuales.                             |
+| `POST`   | `/peers`                     | Crear un cliente y recibir sus datos en JSON.                            |
+| `POST`   | `/peers?format=config`       | Crear un cliente y recibir su configuración completa como texto.         |
+| `GET`    | `/peers/{public_key}`        | Consultar un cliente específico.                                         |
+| `GET`    | `/peers/{public_key}/config` | Obtener una configuración parcial en JSON.                               |
+| `DELETE` | `/peers/{public_key}`        | Eliminar un cliente del servidor.                                        |
+| `GET`    | `/metrics`                   | Consultar métricas en formato Prometheus.                                |
 
 La API devuelve la clave privada generada únicamente al crear el cliente y no
 la conserva. La descarga de la configuración completa debe realizarse en ese
@@ -96,6 +96,7 @@ al bundle del frontend ni almacenarse en el repositorio.
 - **shadcn/ui** y **Radix UI** para componentes.
 - **Lucide React** para iconos.
 - **Oxlint** para análisis estático.
+- **Prettier** para formato de código.
 - **pnpm** para gestión de dependencias.
 
 ## Desarrollo local
@@ -118,12 +119,25 @@ Abre la URL que indique Vite en la terminal.
 
 ### Comandos disponibles
 
-| Comando | Descripción |
-| --- | --- |
-| `pnpm dev` | Inicia el servidor de desarrollo. |
-| `pnpm lint` | Analiza el código con Oxlint. |
-| `pnpm build` | Comprueba los tipos con TypeScript y genera la compilación en `dist/`. |
-| `pnpm preview` | Sirve la compilación localmente para revisarla. |
+| Comando             | Descripción                                                                     |
+| ------------------- | ------------------------------------------------------------------------------- |
+| `pnpm dev`          | Inicia el servidor de desarrollo.                                               |
+| `pnpm format`       | Aplica el formato de Prettier.                                                  |
+| `pnpm format:check` | Verifica el formato sin modificar archivos.                                     |
+| `pnpm lint`         | Analiza el código con Oxlint y aplica las correcciones automáticas disponibles. |
+| `pnpm lint:check`   | Verifica el código con Oxlint sin modificar archivos.                           |
+| `pnpm typecheck`    | Comprueba los tipos de la aplicación y la configuración con TypeScript.         |
+| `pnpm build`        | Comprueba los tipos con TypeScript y genera la compilación en `dist/`.          |
+| `pnpm preview`      | Sirve la compilación localmente para revisarla.                                 |
+
+Los comandos de lint fallan si encuentran errores o advertencias. Para verificar
+el código sin modificar archivos:
+
+```bash
+pnpm format:check
+pnpm lint:check
+pnpm typecheck
+```
 
 ## Estructura del proyecto
 
