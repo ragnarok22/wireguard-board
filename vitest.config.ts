@@ -20,6 +20,7 @@ export default mergeConfig(
           'src/features/**/*.tsx',
           'src/hooks/*.ts',
           'src/app.tsx',
+          'src/components/ui/*.tsx',
         ],
         reporter: ['text', 'html', 'lcov'],
         thresholds: { statements: 85, lines: 85, branches: 80, functions: 80 },

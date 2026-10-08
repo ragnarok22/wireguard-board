@@ -89,6 +89,16 @@ async function connectSavedServer(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('workspace workflows', () => {
+  it('returns keyboard focus to the opening action after closing a dialog', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    const opener = screen.getByRole('button', { name: 'Add your first server' })
+    await user.click(opener)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(opener).toHaveFocus()
+  })
   it('starts with a real empty state and connects a tested server', async () => {
     const fetchMock = mockApi()
     const user = userEvent.setup()
@@ -263,6 +273,55 @@ describe('workspace workflows', () => {
 })
 
 describe('one-time peer configuration', () => {
+  it('downloads and copies the generated config, then discards the one-time key on close', async () => {
+    mockApi()
+    saveServers([server])
+    const user = userEvent.setup()
+    const clipboard = vi
+      .spyOn(navigator.clipboard, 'writeText')
+      .mockResolvedValue()
+    let download: Blob | undefined
+    vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
+      download = blob as Blob
+      return 'blob:client-config'
+    })
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    let filename = ''
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      filename = this.download
+    })
+    const { client } = renderApp()
+    await connectSavedServer(user)
+    await user.click(screen.getByRole('button', { name: 'Add peer' }))
+    const name = screen.getByLabelText(/Configuration filename/)
+    await user.clear(name)
+    await user.type(name, 'Work Laptop')
+    await user.click(screen.getByRole('button', { name: 'Create peer' }))
+    await user.click(
+      await screen.findByRole('button', { name: 'Download .conf' }),
+    )
+    expect(filename).toBe('work-laptop.conf')
+    expect(await download!.text()).toContain(`PrivateKey = ${privateKey}`)
+    expect(await download!.text()).toContain('Address = 10.13.13.3/32')
+    await user.click(screen.getByRole('button', { name: 'Copy config' }))
+    expect(clipboard).toHaveBeenCalledWith(await download!.text())
+    await user.click(screen.getByRole('button', { name: 'Done' }))
+    await waitFor(() =>
+      expect(client.getMutationCache().getAll()).toHaveLength(0),
+    )
+    expect(
+      JSON.stringify(
+        client
+          .getQueryCache()
+          .getAll()
+          .map((query) => query.state.data),
+      ),
+    ).not.toContain(privateKey)
+    expect(localStorage.getItem(storageKey)).not.toContain(privateKey)
+    await screen.findByRole('button', { name: 'View peer 10.13.13.3/32' })
+  })
   it('creates once and keeps the private key when configuration retrieval must be retried', async () => {
     let configCalls = 0
     const fetchMock = vi.fn(async (url: string, options?: RequestInit) => {

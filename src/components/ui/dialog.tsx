@@ -1,6 +1,6 @@
 import { Dialog as DialogPrimitive } from 'radix-ui'
 import { X } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 
 export function Dialog({
   title,
@@ -17,6 +17,11 @@ export function Dialog({
   busy?: boolean
   wide?: boolean
 }) {
+  const [opener] = useState(() =>
+    document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null,
+  )
   return (
     <DialogPrimitive.Root
       open
@@ -29,6 +34,11 @@ export function Dialog({
         <DialogPrimitive.Content
           className={`dialog-content ${wide ? 'dialog-wide' : ''}`}
           onInteractOutside={(event) => event.preventDefault()}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            if (opener?.isConnected) opener.focus()
+            else document.querySelector<HTMLElement>('main')?.focus()
+          }}
           onEscapeKeyDown={(event) => {
             if (busy) event.preventDefault()
           }}
