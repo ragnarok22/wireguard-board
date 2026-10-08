@@ -8,6 +8,8 @@ import {
   peersSchema,
   readinessSchema,
   serverInfoSchema,
+  systemInfoSchema,
+  vpnStatsSchema,
   type Peer,
   type PeerInput,
   type ServerConnection,
@@ -117,6 +119,19 @@ export const api = {
     read(server, '/readyz', readinessSchema, signal, true, true),
   server: (server: ServerConnection, signal?: AbortSignal) =>
     read(server, '/v1/server', serverInfoSchema, signal),
+  system: (server: ServerConnection, signal?: AbortSignal) =>
+    read(server, '/v1/system', systemInfoSchema, signal),
+  stats: (
+    server: ServerConnection,
+    signal?: AbortSignal,
+    handshakeWindowSeconds?: number,
+  ) =>
+    read(
+      server,
+      `/v1/stats${handshakeWindowSeconds === undefined ? '' : `?handshake_window_seconds=${encodeURIComponent(handshakeWindowSeconds)}`}`,
+      vpnStatsSchema,
+      signal,
+    ),
   peerPage: (server: ServerConnection, after?: string, signal?: AbortSignal) =>
     read(
       server,

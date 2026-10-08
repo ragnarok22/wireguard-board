@@ -59,6 +59,86 @@ export const serverInfoSchema = z.object({
   available: counter,
 })
 export type ServerInfo = z.infer<typeof serverInfoSchema>
+const measurement = z.number().finite().nonnegative()
+const sampleSchema = z.object({
+  sampled_at: measurement,
+  age_seconds: measurement,
+  interval_seconds: measurement.nullable(),
+})
+export const vpnStatsSchema = z.object({
+  version: z.string(),
+  uptime_seconds: measurement,
+  sample: sampleSchema,
+  peers: z.object({
+    registered: counter,
+    active: counter,
+    pending: counter,
+    deleting: counter,
+    applied: counter,
+    observed: counter,
+    unmanaged: counter,
+  }),
+  handshakes: z.object({
+    recent: counter,
+    never: counter,
+    latest_at: counter.nullable(),
+    window_seconds: z.number().int().min(1).max(3600),
+  }),
+  traffic: z.object({
+    scope: z.literal('current_interface'),
+    rx_bytes: counter,
+    tx_bytes: counter,
+    rx_bytes_per_second: measurement.nullable(),
+    tx_bytes_per_second: measurement.nullable(),
+  }),
+  pool: z.object({
+    network: z.string(),
+    capacity: counter,
+    reserved: counter,
+    available: counter,
+  }),
+  pending_operations: counter,
+})
+export type VpnStats = z.infer<typeof vpnStatsSchema>
+const resourceSource = z.enum(['cgroup_v1', 'cgroup_v2', 'unavailable'])
+export const systemInfoSchema = z.object({
+  status: z.enum(['available', 'partial']),
+  resource_scope: z.literal('current_cgroup'),
+  sample: sampleSchema,
+  cpu: z.object({
+    source: resourceSource,
+    status: z.enum(['available', 'warming_up', 'unavailable']),
+    capacity_cores: measurement.nullable(),
+    total_usage_seconds: measurement.nullable(),
+    used_cores: measurement.nullable(),
+    usage_percent: measurement.nullable(),
+  }),
+  memory: z.object({
+    source: resourceSource,
+    used_bytes: counter.nullable(),
+    limit_bytes: counter.nullable(),
+    capacity_bytes: counter.nullable(),
+    usage_percent: measurement.nullable(),
+  }),
+  disk: z
+    .object({
+      scope: z.literal('data_filesystem'),
+      total_bytes: counter,
+      used_bytes: counter,
+      free_bytes: counter,
+      usage_percent: measurement,
+    })
+    .nullable(),
+  runtime: z.object({
+    os: z.string(),
+    kernel: z.string(),
+    architecture: z.string(),
+    python_version: z.string(),
+    api_version: z.string(),
+    uptime_seconds: measurement,
+  }),
+})
+export type SystemInfo = z.infer<typeof systemInfoSchema>
 export const operationSchema = z.object({
   id: z.uuid(),
   peer_id: z.uuid(),

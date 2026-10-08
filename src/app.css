@@ -554,6 +554,59 @@ h1 {
   gap: 15px;
   margin: 21px 0 28px;
 }
+.telemetry-section {
+  margin: 22px 0;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fbfcfb;
+}
+.telemetry-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.telemetry-heading h2 {
+  font-size: 16px;
+  font-weight: 550;
+  letter-spacing: -0.3px;
+}
+.telemetry-heading > span {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+.telemetry-section .stat-grid {
+  margin: 16px 0;
+}
+.telemetry-section .stat-card > strong {
+  font-size: clamp(19px, 1.8vw, 26px);
+  overflow-wrap: anywhere;
+}
+.telemetry-details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin: 20px 0;
+}
+.telemetry-details dt {
+  color: var(--text-muted);
+  font-size: 10px;
+  margin-bottom: 5px;
+}
+.telemetry-details dd {
+  margin: 0;
+  color: #44614e;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.telemetry-footnote {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.8;
+  margin-top: 8px;
+}
 .server-information {
   margin-top: 16px;
   padding: 20px;
@@ -1162,6 +1215,15 @@ pre {
   }
 }
 @media (max-width: 767px) {
+  .telemetry-section {
+    padding: 15px;
+  }
+  .telemetry-details {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .telemetry-section .notice {
+    flex-wrap: wrap;
+  }
   .app-shell {
     flex-direction: column;
   }

@@ -16,7 +16,7 @@ import { uptimeLabel } from '@/lib/formatters'
 import { CreatePeerDialog } from '@/features/peers/create-peer-dialog'
 import { PeerDetailsDialog } from '@/features/peers/peer-details-dialog'
 import { PeerList } from './peer-list'
-import { ServerStats } from './server-stats'
+import { SystemTelemetry, VpnTelemetry } from './telemetry-panels'
 import { TrackedOperations } from '@/features/peers/operation-status'
 import { MetricsDialog } from './metrics-dialog'
 
@@ -55,8 +55,25 @@ export function ServerDashboard({
     refetchInterval: 15_000,
   })
   const [dialog, setDialog] = useState<'create' | 'metrics' | Peer | null>(null)
+  const stats = useQuery({
+    queryKey: [...serverQueryKey(server), 'vpn-stats'],
+    queryFn: ({ signal }) => api.stats(server, signal),
+    refetchInterval: 15_000,
+    retry: false,
+  })
+  const system = useQuery({
+    queryKey: [...serverQueryKey(server), 'system'],
+    queryFn: ({ signal }) => api.system(server, signal),
+    refetchInterval: 15_000,
+    retry: false,
+  })
   const refreshing =
-    health.isFetching || peers.isFetching || info.isFetching || live.isFetching
+    health.isFetching ||
+    peers.isFetching ||
+    info.isFetching ||
+    live.isFetching ||
+    stats.isFetching ||
+    system.isFetching
   const canCreate = peers.isSuccess && !peers.error
   async function refresh() {
     await Promise.all([
@@ -64,6 +81,8 @@ export function ServerDashboard({
       peers.refetch(),
       info.refetch(),
       live.refetch(),
+      stats.refetch(),
+      system.refetch(),
     ])
   }
 
@@ -139,7 +158,8 @@ export function ServerDashboard({
         </section>
       )}
       <TrackedOperations server={server} />
-      <ServerStats peers={peers.data} />
+      <VpnTelemetry query={stats} />
+      <SystemTelemetry query={system} />
       <PeerList
         peers={peers.data}
         loading={peers.isPending}

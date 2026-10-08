@@ -10,7 +10,7 @@ export function refreshInventory(
   client: QueryClient,
   server: ServerConnection,
 ) {
-  for (const name of ['peers', 'server-info', 'readiness'])
+  for (const name of ['peers', 'server-info', 'readiness', 'vpn-stats'])
     void client.invalidateQueries({
       queryKey: [...serverQueryKey(server), name],
     })

@@ -68,7 +68,7 @@ describe('durable operation tracking', () => {
     })
     expect(result.current.data?.operation.status).toBe('complete')
     expect(invalidate.mock.calls.map(([options]) => options?.queryKey)).toEqual(
-      ['peers', 'server-info', 'readiness'].map((name) => [
+      ['peers', 'server-info', 'readiness', 'vpn-stats'].map((name) => [
         ...serverQueryKey(server),
         name,
       ]),

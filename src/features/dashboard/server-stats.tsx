@@ -1,51 +1,47 @@
 import { ArrowDownLeft, ArrowUpRight, Radio, Users } from 'lucide-react'
-import type { Peer } from '@/lib/api-types'
-import { formatBytes, isRecentlyActive } from '@/lib/formatters'
+import type { VpnStats } from '@/lib/api-types'
+import { formatBytes } from '@/lib/formatters'
 
-export function ServerStats({ peers }: { peers?: Peer[] }) {
-  const activity = peers?.filter(
-    (peer) =>
-      peer.applied &&
-      isRecentlyActive(peer.observation?.latest_handshake ?? null),
-  ).length
-  const traffic = peers?.every((peer) => peer.observation)
-    ? peers.reduce(
-        (total, peer) => ({
-          rx: total.rx + peer.observation!.transfer_rx,
-          tx: total.tx + peer.observation!.transfer_tx,
-        }),
-        { rx: 0, tx: 0 },
-      )
-    : undefined
-  const stats = [
+function rate(value?: number | null) {
+  return value == null ? '—' : `${formatBytes(value)}/s`
+}
+
+export function ServerStats({ stats }: { stats?: VpnStats }) {
+  const cards = [
     {
-      label: 'Total peers',
-      value: peers?.length ?? '—',
-      description: 'Devices on this server',
+      label: 'Registered peers',
+      value: stats?.peers.registered ?? '—',
+      description: 'Desired inventory, including deleting peers',
       icon: Users,
     },
     {
-      label: 'Recently active',
-      value: peers?.every((peer) => peer.observation) ? activity : '—',
-      description: 'Handshake in the last 3 minutes',
+      label: 'Recent handshakes',
+      value: stats?.handshakes.recent ?? '—',
+      description: stats
+        ? `Activity in the last ${stats.handshakes.window_seconds}s`
+        : 'Waiting for VPN telemetry',
       icon: Radio,
     },
     {
-      label: 'Received',
-      value: traffic ? formatBytes(traffic.rx) : '—',
-      description: 'From peers to this server',
+      label: 'Receive rate',
+      value: rate(stats?.traffic.rx_bytes_per_second),
+      description: stats
+        ? `${formatBytes(stats.traffic.rx_bytes)} received by server`
+        : 'Waiting for VPN telemetry',
       icon: ArrowDownLeft,
     },
     {
-      label: 'Sent',
-      value: traffic ? formatBytes(traffic.tx) : '—',
-      description: 'From this server to peers',
+      label: 'Send rate',
+      value: rate(stats?.traffic.tx_bytes_per_second),
+      description: stats
+        ? `${formatBytes(stats.traffic.tx_bytes)} sent by server`
+        : 'Waiting for VPN telemetry',
       icon: ArrowUpRight,
     },
   ]
   return (
-    <section className="stat-grid" aria-label="Server statistics">
-      {stats.map(({ label, value, description, icon: Icon }) => (
+    <div className="stat-grid" aria-label="VPN statistics">
+      {cards.map(({ label, value, description, icon: Icon }) => (
         <div key={label} className="stat-card">
           <div className="stat-label">
             {label}
@@ -55,6 +51,6 @@ export function ServerStats({ peers }: { peers?: Peer[] }) {
           <span>{description}</span>
         </div>
       ))}
-    </section>
+    </div>
   )
 }

@@ -15,6 +15,8 @@ import {
   live,
   operation,
   serverInfo,
+  systemInfo,
+  vpnStats,
   peer,
   privateKey,
   publicKey,
@@ -49,6 +51,12 @@ function mockApi() {
         return new Response('wireguard_available 1\nwireguard_peers_total 1\n')
       if (new Headers(options?.headers).get('X-API-Token') !== 'session-secret')
         return jsonResponse({ detail: 'Invalid token' }, 403)
+      if (url.pathname === '/v1/system') return jsonResponse(systemInfo)
+      if (url.pathname === '/v1/stats')
+        return jsonResponse({
+          ...vpnStats,
+          peers: { ...vpnStats.peers, registered: list.length },
+        })
       if (options?.method === 'DELETE') {
         peersByHost.set(
           url.host,
