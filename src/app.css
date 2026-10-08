@@ -3,6 +3,51 @@
   min-height: 100svh;
   font-size: 14px;
 }
+.workspace-tools-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: 15px;
+  padding: 6px 10px;
+  min-height: 32px;
+  background: white;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11px;
+}
+.topbar > span {
+  margin-left: auto;
+}
+.transfer-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.transfer-section h3 {
+  font-size: 14px;
+  font-weight: 550;
+}
+.transfer-section p {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.transfer-section > button {
+  align-self: flex-start;
+}
+.transfer-section input[type='file'] {
+  height: auto;
+  min-height: 40px;
+}
+@media (max-width: 767px) {
+  .workspace-tools-button {
+    margin-left: auto;
+  }
+  .workspace-tools-button span {
+    display: none;
+  }
+}
 .sidebar {
   width: 250px;
   flex-shrink: 0;

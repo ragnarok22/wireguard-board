@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { loadServers, saveServers } from '@/lib/server-storage'
 import type { ServerConnection } from '@/lib/api-types'
+import type { ServerMetadata } from '@/lib/api-types'
+import { mergeServers } from '@/lib/server-transfer'
 
 export function useServerRegistry() {
   const queryClient = useQueryClient()
@@ -52,6 +54,13 @@ export function useServerRegistry() {
     )
   }
 
+  function importServers(metadata: ServerMetadata[]) {
+    const merged = mergeServers(servers, metadata)
+    persist(merged.servers)
+    if (!selectedId) setSelectedId(merged.servers[0]?.id)
+    return { added: merged.added, skipped: merged.skipped }
+  }
+
   return {
     servers,
     selected: servers.find((server) => server.id === selectedId),
@@ -61,5 +70,6 @@ export function useServerRegistry() {
     remove,
     lock,
     warning,
+    importServers,
   }
 }

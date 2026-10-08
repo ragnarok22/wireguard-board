@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ArrowRight,
+  Download,
   CheckCircle2,
   ChevronRight,
   ExternalLink,
@@ -19,6 +20,7 @@ import { api, serverQueryKey } from '@/lib/api-client'
 import type { ServerConnection } from '@/lib/api-types'
 import { useServerRegistry } from '@/hooks/use-server-registry'
 import { ServerForm } from '@/features/servers/server-form'
+import { ServerTransferDialog } from '@/features/servers/server-transfer-dialog'
 import { ServerDashboard } from '@/features/dashboard/server-dashboard'
 import './app.css'
 
@@ -82,6 +84,7 @@ export default function App() {
     server?: ServerConnection
   } | null>(null)
   const [notice, setNotice] = useState('')
+  const [transferOpen, setTransferOpen] = useState(false)
   const selected = registry.selected
 
   return (
@@ -172,6 +175,15 @@ export default function App() {
             <ShieldCheck size={15} />
             Your network, simplified
           </span>
+          <button
+            className="workspace-tools-button"
+            aria-label="Import / export servers"
+            title="Import / export servers"
+            onClick={() => setTransferOpen(true)}
+          >
+            <Download size={14} />
+            <span>Import / export</span>
+          </button>
         </div>
         <main id="main-content" tabIndex={-1}>
           {registry.warning && (
@@ -344,6 +356,18 @@ export default function App() {
             setNotice('Server connection removed from this workspace.')
           }}
           onClose={() => setServerDialog(null)}
+        />
+      )}
+      {transferOpen && (
+        <ServerTransferDialog
+          servers={registry.servers}
+          onClose={() => setTransferOpen(false)}
+          onImport={(metadata) => {
+            const result = registry.importServers(metadata)
+            setNotice(
+              `Imported ${result.added} ${result.added === 1 ? 'server' : 'servers'}; skipped ${result.skipped} existing ${result.skipped === 1 ? 'URL' : 'URLs'}. New connections are locked.`,
+            )
+          }}
         />
       )}
     </div>
