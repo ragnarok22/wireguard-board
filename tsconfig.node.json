@@ -26,6 +26,7 @@
     "vite.config.ts",
     "vitest.config.ts",
     "api/**/*.ts",
-    "server/**/*.ts"
+    "server/**/*.ts",
+    "scripts/**/*.ts"
   ]
 }

@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
 import { handleProxy } from './proxy-handler.ts'
 import { ProxyError, proxyErrorResponse } from './proxy-error.ts'
+import { securityHeaders } from './security-headers.ts'
 
 export async function serveProxy(
   request: IncomingMessage,
@@ -75,5 +76,6 @@ export function wireguardProxy(): Plugin {
     name: 'wireguard-proxy',
     configureServer: configure,
     configurePreviewServer: configure,
+    config: () => ({ preview: { headers: securityHeaders } }),
   }
 }

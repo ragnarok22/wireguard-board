@@ -6,6 +6,7 @@ import {
 } from './public-target.ts'
 import { validateRoute } from './proxy-route.ts'
 import { sendUpstream, type SendUpstream } from './upstream-request.ts'
+import { limitProxyRequest } from './proxy-rate-limit.ts'
 
 export const maxRequestBytes = 16 * 1024
 
@@ -99,11 +100,17 @@ export async function handleProxy(
     resolve?: ResolveHost
     send?: SendUpstream
     timeoutMs?: number
+    rateLimit?: (request: Request) => Promise<Response | null>
   } = {},
 ): Promise<Response> {
   const timeout = AbortSignal.timeout(dependencies.timeoutMs ?? 10_000)
   const signal = AbortSignal.any([request.signal, timeout])
   try {
+    const rateLimited = await withSignal(
+      (dependencies.rateLimit ?? limitProxyRequest)(request),
+      signal,
+    )
+    if (rateLimited) return rateLimited
     const parameters = new URL(request.url).searchParams
     if (
       parameters.getAll('path').length !== 1 ||

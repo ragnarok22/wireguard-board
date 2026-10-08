@@ -1,0 +1,33 @@
+name: Deployment smoke test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wireguard-deployment-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: wireguard-smoke
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Exercise the deployed board and a disposable peer
+        run: pnpm smoke:deployment
+        env:
+          SMOKE_BOARD_URL: ${{ vars.SMOKE_BOARD_URL }}
+          SMOKE_API_URL: ${{ vars.SMOKE_API_URL }}
+          SMOKE_API_TOKEN: ${{ secrets.SMOKE_API_TOKEN }}
+          SMOKE_BYPASS_SECRET: ${{ secrets.SMOKE_BYPASS_SECRET }}
