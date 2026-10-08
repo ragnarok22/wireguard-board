@@ -1,13 +1,14 @@
 // @vitest-environment node
 import { createServer, type Server } from 'node:http'
 import { once } from 'node:events'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { serveProxy, wireguardProxy } from './vite-proxy.ts'
 import { handleProxy } from './proxy-handler.ts'
 import vercelHandler from '../api/wireguard.ts'
 
 let server: Server | undefined
 afterEach(async () => {
+  vi.unstubAllEnvs()
   if (server) {
     server.closeAllConnections()
     await new Promise<void>((resolve) => server!.close(() => resolve()))
@@ -59,11 +60,19 @@ it('serves the same Web handler through a real local HTTP request', async () => 
 })
 
 it('exposes the Vercel handler and local development/preview adapters', async () => {
+  vi.stubEnv('NODE_ENV', 'production')
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue(new Response(null, { status: 204 })),
+  )
   expect(wireguardProxy().configureServer).toBeTypeOf('function')
   expect(wireguardProxy().configurePreviewServer).toBeTypeOf('function')
   const response = await vercelHandler.fetch(
     new Request('https://board.example.com/api/wireguard?path=/livez', {
-      headers: { 'X-WireGuard-Server': 'http://127.0.0.1' },
+      headers: {
+        'X-WireGuard-Server': 'http://127.0.0.1',
+        'x-real-ip': '8.8.8.8',
+      },
     }),
   )
   expect(response.status).toBe(400)

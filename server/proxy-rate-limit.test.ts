@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { limitProxyRequest } from './proxy-rate-limit.ts'
 import { handleProxy } from './proxy-handler.ts'
 import { securityHeaders } from './security-headers.ts'
+import vercelHandler from '../api/wireguard.ts'
 import deployment from '../vercel.json'
 
 afterEach(() => vi.unstubAllEnvs())
@@ -21,6 +22,17 @@ function request(ip = '8.8.8.8') {
 }
 
 describe('Vercel-backed rate limiting', () => {
+  it('enforces the Vercel entrypoint limit even when the VERCEL marker is absent', async () => {
+    vi.stubEnv('VERCEL', '')
+    vi.stubEnv('NODE_ENV', 'production')
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 429 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const response = await vercelHandler.fetch(request())
+    expect(response.status).toBe(429)
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
   it('uses shared platform counters without sending API credentials or trusting a supplied Host', async () => {
     vi.stubEnv('VERCEL', '1')
     vi.stubEnv('NODE_ENV', 'production')

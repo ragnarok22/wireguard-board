@@ -25,6 +25,11 @@ afterEach(async () => {
 
 it('runs the independently emitted Vercel function using root compiler settings', async () => {
   vi.stubEnv('VERCEL', '0')
+  vi.stubEnv('NODE_ENV', 'production')
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue(new Response(null, { status: 204 })),
+  )
   const config = ts.readConfigFile(
     resolve(root, 'tsconfig.json'),
     ts.sys.readFile,
@@ -62,7 +67,10 @@ it('runs the independently emitted Vercel function using root compiler settings'
   )
   const response = (await module.default.fetch(
     new Request('https://board.example.com/api/wireguard?path=/livez', {
-      headers: { 'X-WireGuard-Server': 'http://127.0.0.1' },
+      headers: {
+        'X-WireGuard-Server': 'http://127.0.0.1',
+        'x-real-ip': '8.8.8.8',
+      },
     }),
   )) as Response
   expect(response.status).toBe(400)
