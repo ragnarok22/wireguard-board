@@ -129,7 +129,7 @@ describe('URL and statistics', () => {
     expect(formatBytes(1048576 * 1.5)).toBe('1.5 MiB')
     expect(uptimeLabel(12)).toBe('Less than a minute')
     expect(uptimeLabel(600)).toBe('10 minutes')
-    expect(uptimeLabel(3600)).toBe('1 hours')
+    expect(uptimeLabel(3600)).toBe('1 hour')
     expect(uptimeLabel(86400 * 2)).toBe('2 days')
   })
   it('uses handshake activity rather than pretending there is a connection state', () => {

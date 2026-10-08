@@ -22,6 +22,7 @@ export default mergeConfig(
           'src/app.tsx',
         ],
         reporter: ['text', 'html', 'lcov'],
+        thresholds: { statements: 85, lines: 85, branches: 80, functions: 80 },
       },
     },
   }),
