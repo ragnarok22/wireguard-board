@@ -14,7 +14,11 @@ import {
 } from './api-types'
 
 export class ApiError extends Error {
-  constructor(message: string, readonly status = 0, readonly code?: string) {
+  constructor(
+    message: string,
+    readonly status = 0,
+    readonly code?: string,
+  ) {
     super(message)
     this.name = 'ApiError'
   }
@@ -29,14 +33,21 @@ async function request<T>(
   acceptNotReady = false,
 ): Promise<{ data: T | null; retryAfterMs: number }> {
   const timeout = AbortSignal.timeout(12_000)
-  const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout
+  const signal = options.signal
+    ? AbortSignal.any([options.signal, timeout])
+    : timeout
   try {
     const headers = new Headers(options.headers)
     headers.set('Accept', schema === 'text' ? 'text/plain' : 'application/json')
     if (!publicRequest) headers.set('X-API-Token', server.token ?? '')
     if (options.body) headers.set('Content-Type', 'application/json')
     const response = await fetch(`${server.url}${path}`, {
-      ...options, signal, credentials: 'omit', redirect: 'error', cache: 'no-store', headers,
+      ...options,
+      signal,
+      credentials: 'omit',
+      redirect: 'error',
+      cache: 'no-store',
+      headers,
     })
     if (!response.ok && !(acceptNotReady && response.status === 503)) {
       const body: unknown = await response.json().catch(() => null)
@@ -44,7 +55,8 @@ async function request<T>(
       let code: string | undefined
       if (body && typeof body === 'object') {
         if ('code' in body && typeof body.code === 'string') code = body.code
-        if ('detail' in body && typeof body.detail === 'string') message = body.detail
+        if ('detail' in body && typeof body.detail === 'string')
+          message = body.detail
       }
       if (response.status === 401 || response.status === 403)
         message = 'Authentication failed. Check this server’s API token.'
@@ -54,32 +66,64 @@ async function request<T>(
     const seconds = retry && /^\d+$/.test(retry) ? Number(retry) : 5
     const retryAfterMs = Math.max(1000, seconds * 1000)
     if (response.status === 204) return { data: null, retryAfterMs }
-    if (schema === 'text') return { data: await response.text() as T, retryAfterMs }
+    if (schema === 'text')
+      return { data: (await response.text()) as T, retryAfterMs }
     const body: unknown = await response.json()
     const parsed = schema.safeParse(body)
     if (!parsed.success)
-      throw new ApiError('The API returned an unexpected response. Check the backend version.', response.status)
+      throw new ApiError(
+        'The API returned an unexpected response. Check the backend version.',
+        response.status,
+      )
     return { data: parsed.data, retryAfterMs }
   } catch (error) {
     if (error instanceof ApiError || options.signal?.aborted) throw error
     if (timeout.aborted)
-      throw new ApiError('The server took too long to respond. Try refreshing its status.')
-    throw new ApiError('Could not reach the API. Check its URL, your network and the server’s CORS settings.')
+      throw new ApiError(
+        'The server took too long to respond. Try refreshing its status.',
+      )
+    throw new ApiError(
+      'Could not reach the API. Check its URL, your network and the server’s CORS settings.',
+    )
   }
 }
 
-async function read<T>(server: ServerConnection, path: string, schema: z.ZodType<T>, signal?: AbortSignal, publicRequest = false, acceptNotReady = false): Promise<T> {
-  const result = await request(server, path, schema, { signal }, publicRequest, acceptNotReady)
-  if (result.data === null) throw new ApiError('The API returned an unexpected empty response.')
+async function read<T>(
+  server: ServerConnection,
+  path: string,
+  schema: z.ZodType<T>,
+  signal?: AbortSignal,
+  publicRequest = false,
+  acceptNotReady = false,
+): Promise<T> {
+  const result = await request(
+    server,
+    path,
+    schema,
+    { signal },
+    publicRequest,
+    acceptNotReady,
+  )
+  if (result.data === null)
+    throw new ApiError('The API returned an unexpected empty response.')
   return result.data
 }
 const peerPath = (id: string) => `/v1/peers/${encodeURIComponent(id)}`
 
 export const api = {
-  live: (server: ServerConnection, signal?: AbortSignal) => read(server, '/livez', livenessSchema, signal, true),
-  ready: (server: ServerConnection, signal?: AbortSignal) => read(server, '/readyz', readinessSchema, signal, true, true),
-  server: (server: ServerConnection, signal?: AbortSignal) => read(server, '/v1/server', serverInfoSchema, signal),
-  peerPage: (server: ServerConnection, after?: string, signal?: AbortSignal) => read(server, `/v1/peers?limit=100${after ? `&after=${encodeURIComponent(after)}` : ''}`, peersSchema, signal),
+  live: (server: ServerConnection, signal?: AbortSignal) =>
+    read(server, '/livez', livenessSchema, signal, true),
+  ready: (server: ServerConnection, signal?: AbortSignal) =>
+    read(server, '/readyz', readinessSchema, signal, true, true),
+  server: (server: ServerConnection, signal?: AbortSignal) =>
+    read(server, '/v1/server', serverInfoSchema, signal),
+  peerPage: (server: ServerConnection, after?: string, signal?: AbortSignal) =>
+    read(
+      server,
+      `/v1/peers?limit=100${after ? `&after=${encodeURIComponent(after)}` : ''}`,
+      peersSchema,
+      signal,
+    ),
   async peers(server: ServerConnection, signal?: AbortSignal): Promise<Peer[]> {
     const peers = new Map<string, Peer>()
     const cursors = new Set<string>()
@@ -88,39 +132,80 @@ export const api = {
       const page = await api.peerPage(server, after, signal)
       page.items.forEach((peer) => peers.set(peer.id, peer))
       after = page.next_cursor ?? undefined
-      if (after && cursors.has(after)) throw new ApiError('The API returned a repeated pagination cursor.')
+      if (after && cursors.has(after))
+        throw new ApiError('The API returned a repeated pagination cursor.')
       if (after) cursors.add(after)
     } while (after)
     return [...peers.values()]
   },
-  peer: (server: ServerConnection, id: string, signal?: AbortSignal) => read(server, peerPath(id), peerSchema, signal),
-  async createPeer(server: ServerConnection, input: PeerInput, requestKey: string) {
+  peer: (server: ServerConnection, id: string, signal?: AbortSignal) =>
+    read(server, peerPath(id), peerSchema, signal),
+  async createPeer(
+    server: ServerConnection,
+    input: PeerInput,
+    requestKey: string,
+  ) {
     const result = await request(server, '/v1/peers', createdPeerSchema, {
-      method: 'POST', body: JSON.stringify(input), headers: { 'Idempotency-Key': requestKey },
+      method: 'POST',
+      body: JSON.stringify(input),
+      headers: { 'Idempotency-Key': requestKey },
     })
-    if (!result.data) throw new ApiError('The API returned an unexpected empty response.')
+    if (!result.data)
+      throw new ApiError('The API returned an unexpected empty response.')
     return { ...result.data, retryAfterMs: result.retryAfterMs }
   },
-  peerConfig: (server: ServerConnection, id: string, signal?: AbortSignal) => read(server, `${peerPath(id)}/config-template`, configTemplateSchema, signal),
+  peerConfig: (server: ServerConnection, id: string, signal?: AbortSignal) =>
+    read(
+      server,
+      `${peerPath(id)}/config-template`,
+      configTemplateSchema,
+      signal,
+    ),
   async deletePeer(server: ServerConnection, id: string) {
-    const result = await request(server, peerPath(id), operationSchema, { method: 'DELETE' })
-    return result.data ? { operation: result.data, retryAfterMs: result.retryAfterMs } : null
+    const result = await request(server, peerPath(id), operationSchema, {
+      method: 'DELETE',
+    })
+    return result.data
+      ? { operation: result.data, retryAfterMs: result.retryAfterMs }
+      : null
   },
   async operation(server: ServerConnection, id: string, signal?: AbortSignal) {
-    const result = await request(server, `/v1/operations/${encodeURIComponent(id)}`, operationSchema, { signal })
-    if (!result.data) throw new ApiError('The API returned an unexpected empty response.')
+    const result = await request(
+      server,
+      `/v1/operations/${encodeURIComponent(id)}`,
+      operationSchema,
+      { signal },
+    )
+    if (!result.data)
+      throw new ApiError('The API returned an unexpected empty response.')
     return { operation: result.data, retryAfterMs: result.retryAfterMs }
   },
   async metrics(server: ServerConnection, signal?: AbortSignal) {
-    const result = await request<string>(server, '/metrics', 'text', { signal }, true)
-    if (result.data === null) throw new ApiError('The API returned an unexpected empty response.')
+    const result = await request<string>(
+      server,
+      '/metrics',
+      'text',
+      { signal },
+      true,
+    )
+    if (result.data === null)
+      throw new ApiError('The API returned an unexpected empty response.')
     return result.data
   },
   async testConnection(server: ServerConnection, signal?: AbortSignal) {
-    const [live] = await Promise.all([api.live(server, signal), api.ready(server, signal), api.peerPage(server, undefined, signal), api.server(server, signal)])
+    const [live] = await Promise.all([
+      api.live(server, signal),
+      api.ready(server, signal),
+      api.peerPage(server, undefined, signal),
+      api.server(server, signal),
+    ])
     return live
   },
 }
 
-export const serverQueryKey = (server: ServerConnection) => ['server', server.id, server.session] as const
-export const errorMessage = (error: unknown) => error instanceof Error ? error.message : 'Something went wrong. Please try again.'
+export const serverQueryKey = (server: ServerConnection) =>
+  ['server', server.id, server.session] as const
+export const errorMessage = (error: unknown) =>
+  error instanceof Error
+    ? error.message
+    : 'Something went wrong. Please try again.'

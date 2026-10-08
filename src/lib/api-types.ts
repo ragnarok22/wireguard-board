@@ -85,7 +85,9 @@ export const createdPeerSchema = z.object({
 export const configTemplateSchema = z.object({
   config: z.string().min(1),
 })
-export type CreatedPeer = z.infer<typeof createdPeerSchema> & { retryAfterMs: number }
+export type CreatedPeer = z.infer<typeof createdPeerSchema> & {
+  retryAfterMs: number
+}
 export type PeerInput =
   | { key_mode: 'generated'; address?: string }
   | { key_mode: 'external'; public_key: string; address?: string }
