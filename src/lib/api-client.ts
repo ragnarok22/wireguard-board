@@ -66,6 +66,16 @@ async function request<T>(
       }
       if (response.status === 401 || response.status === 403)
         message = 'Authentication failed. Check this server’s API token.'
+      else if (
+        response.status === 429 &&
+        !(
+          body &&
+          typeof body === 'object' &&
+          'detail' in body &&
+          typeof body.detail === 'string'
+        )
+      )
+        message = 'Too many requests. Wait one minute before trying again.'
       throw new ApiError(message, response.status, code)
     }
     const retry = response.headers.get('Retry-After')

@@ -25,11 +25,6 @@ afterEach(async () => {
 
 it('runs the independently emitted Vercel function using root compiler settings', async () => {
   vi.stubEnv('VERCEL', '0')
-  vi.stubEnv('NODE_ENV', 'production')
-  vi.stubGlobal(
-    'fetch',
-    vi.fn().mockResolvedValue(new Response(null, { status: 204 })),
-  )
   const config = ts.readConfigFile(
     resolve(root, 'tsconfig.json'),
     ts.sys.readFile,

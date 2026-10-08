@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process'
+import { firewallPolicy } from '../server/firewall-policy.ts'
 
 // This stages one named rule. Publishing is a separate CLI action so an operator
 // can review any other existing firewall drafts before they become live.
@@ -9,25 +10,21 @@ const result = spawnSync(
     'firewall',
     'rules',
     mode,
-    'WireGuard proxy',
+    firewallPolicy.name,
     '--condition',
-    JSON.stringify({
-      type: 'rate_limit_api_id',
-      op: 'eq',
-      value: 'wireguard-proxy',
-    }),
+    JSON.stringify(firewallPolicy.condition),
     '--action',
-    'rate_limit',
+    firewallPolicy.action,
     '--rate-limit-window',
-    '60',
+    String(firewallPolicy.windowSeconds),
     '--rate-limit-requests',
-    '240',
+    String(firewallPolicy.requests),
     '--rate-limit-keys',
-    'ip',
+    firewallPolicy.keys.join(','),
     '--rate-limit-algo',
-    'fixed_window',
+    firewallPolicy.algorithm,
     '--rate-limit-action',
-    'rate_limit',
+    firewallPolicy.exceededAction,
     '--yes',
   ],
   { stdio: 'inherit' },

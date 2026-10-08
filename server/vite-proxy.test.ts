@@ -60,11 +60,6 @@ it('serves the same Web handler through a real local HTTP request', async () => 
 })
 
 it('exposes the Vercel handler and local development/preview adapters', async () => {
-  vi.stubEnv('NODE_ENV', 'production')
-  vi.stubGlobal(
-    'fetch',
-    vi.fn().mockResolvedValue(new Response(null, { status: 204 })),
-  )
   expect(wireguardProxy().configureServer).toBeTypeOf('function')
   expect(wireguardProxy().configurePreviewServer).toBeTypeOf('function')
   const response = await vercelHandler.fetch(

@@ -14,6 +14,41 @@ import {
 } from '@/test/api-fixtures'
 
 describe('versioned API contract', () => {
+  it('shows a useful cooldown message for an edge 429 without a JSON body', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response('Rate limit exceeded', { status: 429 }),
+        ),
+    )
+    await expect(api.peers(server)).rejects.toMatchObject({
+      status: 429,
+      message: 'Too many requests. Wait one minute before trying again.',
+    })
+  })
+  it('preserves a backend-provided rate-limit explanation', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(
+            {
+              code: 'backend_limit',
+              detail: 'Backend concurrency limit reached',
+            },
+            429,
+          ),
+        ),
+    )
+    await expect(api.peers(server)).rejects.toMatchObject({
+      status: 429,
+      code: 'backend_limit',
+      message: 'Backend concurrency limit reached',
+    })
+  })
   it('authenticates requests, retains URL prefixes and follows every page', async () => {
     const second = {
       ...peer,

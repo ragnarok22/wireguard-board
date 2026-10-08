@@ -17,9 +17,6 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.104.1
         version: 5.104.1(react@19.3.0)
-      '@vercel/firewall':
-        specifier: ^1.2.6
-        version: 1.2.6
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -1413,10 +1410,6 @@ packages:
 
   '@types/ws@8.18.2':
     resolution: {integrity: sha512-67MQl+fpWKVTT1NYdnmo3U4sc/xPo/zQBncVnI74qmQa0z/b+1g6iYqNmGCPbxO+zz2aklb08a0oHfegiVd0/w==}
-
-  '@vercel/firewall@1.2.6':
-    resolution: {integrity: sha512-89ybsa2rnVNdw6RI3jGOVvqUJaBj6Umm4IagC1o3PKtr/MXxBKOLek+yyUgF0csA0O5W+dzcpdIhKxVXhgVVtA==}
-    engines: {node: '>= 20'}
 
   '@vitejs/plugin-react@6.1.2':
     resolution: {integrity: sha512-fhJNGUdscQa4HkI0xFxwonWyhnVReCPDbXI7FH7jmzpnVCrFQI7PRrhWecO263610vOrs9tr2Y4xcf8uAdFxbw==}
@@ -4363,8 +4356,6 @@ snapshots:
   '@types/ws@8.18.2':
     dependencies:
       '@types/node': 24.19.1
-
-  '@vercel/firewall@1.2.6': {}
 
   '@vitejs/plugin-react@6.1.2(vite@8.3.3(@types/node@24.19.1)(jiti@2.7.0))':
     dependencies:
