@@ -1,0 +1,40 @@
+name: Feature request
+description: Suggest a focused improvement to WireGuard Board.
+title: '[Feature]: '
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Help us keep the board simple and useful. Please use English and describe the workflow you want to improve.
+        Search existing issues before proposing a new feature. Use sample data without tokens or private keys.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Explain the task that is difficult or missing today and who would benefit.
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed solution
+      description: Describe the desired behavior and how it fits into a simple, multi-server dashboard.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe any existing workflows or other approaches you considered.
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add mockups, example workflows or relevant API capabilities. Use sample data without credentials.
+  - type: checkboxes
+    id: existing-issues
+    attributes:
+      label: Existing issues
+      options:
+        - label: I searched existing issues and could not find a request for this feature.
+          required: true

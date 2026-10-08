@@ -253,3 +253,17 @@ Publish the contents of `dist/` to any static hosting service. No environment
 variables are required and no tokens are included in the build; connections are
 registered through the interface. Tests do not require privileged networking or
 a live API.
+
+## Community
+
+Contributions are welcome. Read the [contribution guidelines](CONTRIBUTING.md)
+for development conventions, verification commands and the pull request process.
+Participation is governed by our [Code of Conduct](CODE_OF_CONDUCT.md).
+
+Use the [issue templates](https://github.com/ragnarok22/wireguard-board/issues/new/choose)
+for bug reports and feature requests. Report vulnerabilities privately following
+the [Security Policy](SECURITY.md).
+
+## License
+
+WireGuard Board is licensed under the [GNU General Public License, version 3](LICENSE).

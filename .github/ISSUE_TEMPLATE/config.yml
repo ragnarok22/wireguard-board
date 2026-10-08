@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability privately
+    url: https://github.com/ragnarok22/wireguard-board/security/policy
+    about: Use the private email address in the security policy, not a public issue.
+  - name: Setup and usage documentation
+    url: https://github.com/ragnarok22/wireguard-board/blob/main/README.md
+    about: Read the connection, CORS, backend compatibility and deployment guidance.

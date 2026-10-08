@@ -1,0 +1,69 @@
+name: Bug report
+description: Report a reproducible problem with WireGuard Board.
+title: '[Bug]: '
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve WireGuard Board. Please use English and search existing issues first.
+
+        **Do not include API tokens, private keys, complete client configurations or credential-bearing QR codes.**
+        Report vulnerabilities privately following the [Security Policy](https://github.com/ragnarok22/wireguard-board/security/policy).
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the problem and the workflow it affects.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide the smallest set of steps that reproduces the issue using sample data.
+      placeholder: |
+        1. Open the board.
+        2. Select a server.
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: What should happen instead?
+    validations:
+      required: true
+  - type: input
+    id: board-version
+    attributes:
+      label: Board version or commit
+      description: Include the commit SHA or release you are running.
+      placeholder: main at <commit SHA>
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include browser and operating system versions, backend version and relevant hosting or proxy details. Use example hostnames.
+      placeholder: |
+        Browser and version:
+        Operating system:
+        wireguard-api version or commit:
+        Board hosting (local Vite or static hosting):
+        API connection (same origin or cross-origin, HTTP or HTTPS):
+    validations:
+      required: true
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Logs, screenshots or additional context
+      description: Include sanitized console errors, API status codes or screenshots. Remove credentials and private infrastructure details.
+  - type: checkboxes
+    id: existing-issues
+    attributes:
+      label: Existing issues
+      options:
+        - label: I searched existing issues and could not find a report of this problem.
+          required: true
