@@ -32,8 +32,8 @@ function ServerItem({
   onSelect: () => void
 }) {
   const health = useQuery({
-    queryKey: [...serverQueryKey(server), 'health'],
-    queryFn: ({ signal }) => api.health(server, signal),
+    queryKey: [...serverQueryKey(server), 'readiness'],
+    queryFn: ({ signal }) => api.ready(server, signal),
     enabled: !!server.token,
     refetchInterval: 30_000,
   })
@@ -43,9 +43,9 @@ function ServerItem({
       ? 'Checking'
       : health.error
         ? 'Unreachable'
-        : health.data.status === 'healthy'
-          ? 'Healthy'
-          : 'Unavailable'
+        : health.data.status === 'ready'
+          ? 'Ready'
+          : 'Not ready'
   return (
     <button
       className={`server-nav-item ${selected ? 'selected' : ''}`}
@@ -58,7 +58,7 @@ function ServerItem({
         <small>{status}</small>
       </span>
       <span
-        className={`status-dot ${status === 'Healthy' ? 'dot-green' : status === 'Locked' || status === 'Checking' ? '' : 'dot-amber'}`}
+        className={`status-dot ${status === 'Ready' ? 'dot-green' : status === 'Locked' || status === 'Checking' ? '' : 'dot-amber'}`}
       />
     </button>
   )

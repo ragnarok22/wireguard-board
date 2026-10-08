@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import App from '@/app'
@@ -9,7 +9,12 @@ import { saveServers, storageKey } from '@/lib/server-storage'
 import {
   health,
   jsonResponse,
-  partialConfig,
+  configTemplate,
+  clientConfig,
+  createdPeer,
+  live,
+  operation,
+  serverInfo,
   peer,
   privateKey,
   publicKey,
@@ -32,46 +37,52 @@ function renderApp(element = <App />) {
 function mockApi() {
   const peersByHost = new Map([
     ['amsterdam.example.com', [peer]],
-    ['berlin.example.com', [{ ...peer, allowed_ips: ['10.20.0.2/32'] }]],
+    ['berlin.example.com', [{ ...peer, address: '10.20.0.2' }]],
   ])
   const fetchMock = vi.fn(
     async (input: string | URL | Request, options?: RequestInit) => {
       const url = new URL(String(input))
       const list = peersByHost.get(url.host) ?? []
-      if (url.pathname === '/health')
-        return jsonResponse({ ...health, peer_count: list.length })
-      if (
-        (options?.headers as Record<string, string>)?.['X-API-Token'] !==
-        'session-secret'
-      )
+      if (url.pathname === '/readyz') return jsonResponse(health)
+      if (url.pathname === '/livez') return jsonResponse(live)
+      if (url.pathname === '/metrics')
+        return new Response('wireguard_available 1\nwireguard_peers_total 1\n')
+      if (new Headers(options?.headers).get('X-API-Token') !== 'session-secret')
         return jsonResponse({ detail: 'Invalid token' }, 403)
       if (options?.method === 'DELETE') {
         peersByHost.set(
           url.host,
-          list.filter(
-            (item) =>
-              item.public_key !==
-              decodeURIComponent(url.pathname.split('/')[2]),
-          ),
+          list.filter((item) => item.id !== url.pathname.split('/')[3]),
         )
         return new Response(null, { status: 204 })
       }
       if (options?.method === 'POST') {
-        const created = {
-          public_key: 'd'.repeat(43) + '=',
-          private_key: privateKey,
-          allowed_ips: ['10.13.13.3/32'],
+        const nextPeer = {
+          ...peer,
+          id: '89a94a53-c94a-46c7-ab91-bc52196c1355',
+          public_key: 'd'.repeat(42) + 'A=',
+          address: '10.13.13.3',
         }
-        peersByHost.set(url.host, [...list, { ...peer, ...created }])
+        const created = {
+          ...createdPeer,
+          peer: nextPeer,
+          operation: { ...operation, peer_id: nextPeer.id },
+          client_config: clientConfig.replace('10.13.13.2', '10.13.13.3'),
+        }
+        peersByHost.set(url.host, [...list, nextPeer])
         return jsonResponse(created, 201)
       }
-      if (url.pathname.endsWith('/config'))
-        return jsonResponse({ config: partialConfig })
-      if (url.pathname === '/peers') return jsonResponse(list)
-      const result = list.find(
-        (item) =>
-          item.public_key === decodeURIComponent(url.pathname.split('/')[2]),
-      )
+      if (url.pathname.endsWith('/config-template'))
+        return jsonResponse({ config: configTemplate })
+      if (url.pathname === '/v1/server')
+        return jsonResponse({
+          ...serverInfo,
+          reserved: list.length,
+          available: serverInfo.capacity - list.length,
+        })
+      if (url.pathname === '/v1/peers')
+        return jsonResponse({ items: list, next_cursor: null })
+      const result = list.find((item) => item.id === url.pathname.split('/')[3])
       return result
         ? jsonResponse(result)
         : jsonResponse({ detail: 'Peer not found' }, 404)
@@ -167,7 +178,7 @@ describe('workspace workflows', () => {
         .filter((query) => query.queryKey[1] !== server.id)
         .every((query) => query.state.data === undefined),
     ).toBe(true)
-    await user.click(screen.getByRole('button', { name: /Amsterdam Healthy/ }))
+    await user.click(screen.getByRole('button', { name: /Amsterdam Ready/ }))
     await screen.findByRole('button', { name: 'View peer 10.13.13.2/32' })
   })
 
@@ -193,7 +204,7 @@ describe('workspace workflows', () => {
     expect(JSON.parse(localStorage.getItem(storageKey)!).servers).toEqual([])
   })
 
-  it('filters peers, inspects partial configs and confirms bodyless deletion', async () => {
+  it('filters peers, inspects templates and confirms bodyless deletion', async () => {
     const fetchMock = mockApi()
     const user = userEvent.setup()
     renderApp(
@@ -217,15 +228,18 @@ describe('workspace workflows', () => {
       screen.getByRole('button', { name: 'View peer 10.13.13.2/32' }),
     )
     await user.click(
-      screen.getByRole('button', { name: 'View partial config' }),
+      screen.getByRole('button', { name: 'View config template' }),
     )
     expect(
-      await screen.findByText(/Endpoint = vpn.example.com:51820/, {
+      await screen.findByText(/Endpoint = vpn.your-domain.tld:51820/, {
         selector: 'pre',
       }),
     ).toHaveTextContent('PersistentKeepalive = 25')
     expect(
       screen.getByText(/not a ready-to-import client file/),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/PrivateKey = <YOUR_PRIVATE_KEY>/, { selector: 'pre' }),
     ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Delete peer' }))
     expect(
@@ -322,72 +336,80 @@ describe('one-time peer configuration', () => {
     expect(localStorage.getItem(storageKey)).not.toContain(privateKey)
     await screen.findByRole('button', { name: 'View peer 10.13.13.3/32' })
   })
-  it('creates once and keeps the private key when configuration retrieval must be retried', async () => {
-    let configCalls = 0
-    const fetchMock = vi.fn(async (url: string, options?: RequestInit) => {
-      if (options?.method === 'POST')
-        return jsonResponse(
-          {
-            public_key: publicKey,
-            private_key: privateKey,
-            allowed_ips: ['10.13.13.2/32'],
-          },
-          201,
-        )
-      if (url.endsWith('/config')) {
-        configCalls++
-        return configCalls === 1
-          ? jsonResponse({ detail: 'Temporary configuration error' }, 500)
-          : jsonResponse({ config: partialConfig })
-      }
-      return jsonResponse([])
-    })
+  it('saves pending credentials immediately and enables the QR only after operation completion', async () => {
+    const fetchMock = vi.fn(async (url: string) =>
+      url.endsWith('/v1/peers')
+        ? jsonResponse(
+            {
+              ...createdPeer,
+              operation: {
+                ...operation,
+                status: 'pending',
+                error: 'wireguard_unavailable',
+              },
+            },
+            202,
+          )
+        : jsonResponse(operation),
+    )
     vi.stubGlobal('fetch', fetchMock)
     const user = userEvent.setup()
-    renderApp(<CreatePeerDialog server={server} onClose={vi.fn()} />)
+    const { client } = renderApp(
+      <CreatePeerDialog server={server} onClose={vi.fn()} />,
+    )
     await user.click(screen.getByRole('button', { name: 'Create peer' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Your peer was created successfully',
-    )
+    await screen.findByRole('heading', { name: 'Peer application pending' })
+    expect(screen.getByRole('button', { name: 'Download .conf' })).toBeEnabled()
     expect(
-      screen.getByRole('button', { name: 'Save creation response' }),
-    ).toBeInTheDocument()
-    await user.click(
-      screen.getByRole('button', { name: 'Retry configuration' }),
-    )
-    await screen.findByRole('button', { name: 'Download .conf' })
+      screen.queryByTitle('WireGuard client configuration'),
+    ).not.toBeInTheDocument()
     expect(
-      screen.getByText(new RegExp(`PrivateKey = ${privateKey}`), {
-        selector: 'pre',
-      }),
+      screen.getByText(/Wait until the operation is complete/),
     ).toBeInTheDocument()
+    await act(async () => {
+      await client.refetchQueries({
+        queryKey: [
+          'server',
+          server.id,
+          server.session,
+          'operation',
+          operation.id,
+        ],
+      })
+    })
+    await screen.findByRole('heading', { name: 'Your peer is ready' })
     expect(
       screen.getByTitle('WireGuard client configuration'),
     ).toBeInTheDocument()
     expect(
-      fetchMock.mock.calls.filter(([, options]) => options?.method === 'POST'),
+      fetchMock.mock.calls.filter(([url]) => url.endsWith('/v1/peers')),
     ).toHaveLength(1)
-    expect(configCalls).toBe(2)
+    expect(
+      screen.getByText(/DNS = 9.9.9.9/, { selector: 'pre' }),
+    ).toBeInTheDocument()
     expect(localStorage.length).toBe(0)
   })
 
   it('creates a custom-key peer without fetching or pretending to have its private key', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      jsonResponse(
-        {
-          public_key: publicKey,
-          allowed_ips: ['10.13.13.9/32'],
-          private_key: null,
-        },
-        201,
-      ),
-    )
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(
+          {
+            ...createdPeer,
+            peer: { ...peer, address: '10.13.13.9' },
+            private_key: null,
+            client_config: null,
+          },
+          201,
+        ),
+      )
     vi.stubGlobal('fetch', fetchMock)
     const user = userEvent.setup()
     renderApp(<CreatePeerDialog server={server} onClose={vi.fn()} />)
     await user.click(screen.getByText('Advanced options'))
     await user.type(screen.getByLabelText(/Public key/), publicKey)
-    await user.type(screen.getByLabelText(/Allowed IPs/), '10.13.13.9/32')
+    await user.type(screen.getByLabelText(/VPN address/), '10.13.13.9')
     await user.click(screen.getByRole('button', { name: 'Create peer' }))
     expect(
       await screen.findByText(/Your peer uses the public key you provided/),
@@ -397,25 +419,227 @@ describe('one-time peer configuration', () => {
     ).not.toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledOnce()
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      key_mode: 'external',
       public_key: publicKey,
-      allowed_ips: ['10.13.13.9/32'],
+      address: '10.13.13.9',
     })
   })
 
-  it('does not automatically retry an ambiguous creation failure', async () => {
-    const fetchMock = vi.fn().mockRejectedValue(new TypeError('Lost response'))
+  it('retries a lost response with exactly the same key and body and explains credential loss', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('Lost response'))
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            ...createdPeer,
+            private_key: null,
+            client_config: null,
+            replayed: true,
+          },
+          200,
+        ),
+      )
     vi.stubGlobal('fetch', fetchMock)
     const user = userEvent.setup()
     renderApp(<CreatePeerDialog server={server} onClose={vi.fn()} />)
     await user.click(screen.getByRole('button', { name: 'Create peer' }))
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'a peer may already exist',
+      'Retry this same request',
     )
     await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
-    expect(
+    await user.click(
       within(screen.getByRole('dialog')).getByRole('button', {
-        name: 'Create peer',
+        name: 'Retry same request',
       }),
-    ).toBeEnabled()
+    )
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Revoke this peer',
+    )
+    expect(fetchMock.mock.calls[0][1].body).toBe(
+      fetchMock.mock.calls[1][1].body,
+    )
+    expect(fetchMock.mock.calls[0][1].headers.get('Idempotency-Key')).toBe(
+      fetchMock.mock.calls[1][1].headers.get('Idempotency-Key'),
+    )
+    expect(
+      screen.queryByRole('button', { name: 'Download .conf' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('rejects noncanonical public keys and CIDR addresses before sending a request', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const user = userEvent.setup()
+    renderApp(<CreatePeerDialog server={server} onClose={vi.fn()} />)
+    await user.click(screen.getByText('Advanced options'))
+    await user.type(screen.getByLabelText(/Public key/), 'invalid')
+    await user.click(screen.getByRole('button', { name: 'Create peer' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('canonical')
+    await user.clear(screen.getByLabelText(/Public key/))
+    await user.type(screen.getByLabelText(/VPN address/), '10.13.13.9/32')
+    await user.click(screen.getByRole('button', { name: 'Create peer' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('bare IPv4')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('monitoring and durable operations', () => {
+  it('shows server capacity and reads, copies and downloads public metrics on demand', async () => {
+    const fetchMock = mockApi()
+    const user = userEvent.setup()
+    const clipboard = vi
+      .spyOn(navigator.clipboard, 'writeText')
+      .mockResolvedValue()
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:metrics')
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => {})
+    renderApp(
+      <ServerDashboard
+        server={server}
+        onSettings={vi.fn()}
+        onLock={vi.fn()}
+        onNotice={vi.fn()}
+      />,
+    )
+    await screen.findByText(/253 total/)
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).endsWith('/metrics')),
+    ).toBe(false)
+    await user.click(screen.getByRole('button', { name: 'View metrics' }))
+    await screen.findByText(/wireguard_available 1/, { selector: 'pre' })
+    await user.click(screen.getByRole('button', { name: 'Copy metrics' }))
+    expect(clipboard).toHaveBeenCalledWith(
+      expect.stringContaining('wireguard_peers_total 1'),
+    )
+    await user.click(screen.getByRole('button', { name: 'Download metrics' }))
+    expect(click).toHaveBeenCalledOnce()
+    await user.click(screen.getByRole('button', { name: 'Refresh metrics' }))
+    await user.click(screen.getByRole('button', { name: 'Done' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('keeps revocation pending after the dialog closes and refreshes only after verified completion', async () => {
+    const base = mockApi()
+    let completed = false
+    const pending = {
+      ...operation,
+      kind: 'delete',
+      status: 'pending',
+      error: 'wireguard_unavailable',
+      request_key: null,
+      fingerprint: null,
+    }
+    const mock = vi.fn(async (input: string, options?: RequestInit) => {
+      if (options?.method === 'DELETE')
+        return jsonResponse(pending, 202, { 'Retry-After': '7' })
+      if (input.includes('/v1/operations/')) {
+        completed = true
+        return jsonResponse({ ...pending, status: 'complete', error: null })
+      }
+      if (completed && input.includes('/v1/peers?'))
+        return jsonResponse({ items: [], next_cursor: null })
+      return base(input, options)
+    })
+    vi.stubGlobal('fetch', mock)
+    const notice = vi.fn()
+    const user = userEvent.setup()
+    const { client } = renderApp(
+      <ServerDashboard
+        server={server}
+        onSettings={vi.fn()}
+        onLock={vi.fn()}
+        onNotice={notice}
+      />,
+    )
+    await user.click(
+      await screen.findByRole('button', { name: 'View peer 10.13.13.2/32' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Delete peer' }))
+    await user.click(screen.getByRole('button', { name: 'Delete peer' }))
+    await screen.findByText(/Revocation pending ·/)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(notice).toHaveBeenCalledWith(
+      expect.stringContaining('Revocation pending'),
+    )
+    expect(completed).toBe(false)
+    expect(
+      screen.getByRole('button', { name: 'View peer 10.13.13.2/32' }),
+    ).toBeInTheDocument()
+    await act(async () => {
+      await client.refetchQueries({
+        queryKey: [
+          'server',
+          server.id,
+          server.session,
+          'operation',
+          operation.id,
+        ],
+      })
+    })
+    await screen.findByText(/Revocation complete ·/)
+    await screen.findByRole('heading', {
+      name: 'Your first connection starts here',
+    })
+    expect(screen.getByText('VPN access has been removed.')).toBeInTheDocument()
+    expect(
+      mock.mock.calls.filter(([, options]) => options?.method === 'DELETE'),
+    ).toHaveLength(1)
+  })
+
+  it('shows not-ready reasons and missing observations without invented traffic', async () => {
+    const base = mockApi()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string, options?: RequestInit) =>
+        input.endsWith('/readyz')
+          ? jsonResponse(
+              { ...health, status: 'not_ready', reason: 'state_not_converged' },
+              503,
+            )
+          : input.includes('/v1/peers?')
+            ? jsonResponse({
+                items: [
+                  {
+                    ...peer,
+                    observation: null,
+                    state: 'pending',
+                    applied: false,
+                  },
+                ],
+                next_cursor: null,
+              })
+            : base(input, options),
+      ),
+    )
+    const user = userEvent.setup()
+    renderApp(
+      <ServerDashboard
+        server={server}
+        onSettings={vi.fn()}
+        onLock={vi.fn()}
+        onNotice={vi.fn()}
+      />,
+    )
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'state_not_converged',
+    )
+    const row = (
+      await screen.findByRole('button', { name: 'View peer 10.13.13.2/32' })
+    ).closest('tr')!
+    expect(row).toHaveTextContent('pending')
+    expect(row).not.toHaveTextContent('0 B')
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Filter peers by activity' }),
+      'pending',
+    )
+    expect(
+      screen.getByRole('button', { name: 'View peer 10.13.13.2/32' }),
+    ).toBeInTheDocument()
+    await user.click(
+      screen.getByRole('button', { name: 'View peer 10.13.13.2/32' }),
+    )
+    await screen.findByText('Peer ID')
   })
 })

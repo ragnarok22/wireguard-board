@@ -8,6 +8,7 @@ import { api, errorMessage, serverQueryKey } from '@/lib/api-client'
 import type { Peer, ServerConnection } from '@/lib/api-types'
 import { downloadText } from '@/lib/client-config'
 import { formatBytes, handshakeLabel, shortKey } from '@/lib/formatters'
+import { refreshInventory, trackOperation } from '@/hooks/use-operations'
 
 export function PeerDetailsDialog({
   server,
@@ -18,36 +19,38 @@ export function PeerDetailsDialog({
   server: ServerConnection
   peer: Peer
   onClose: () => void
-  onDeleted: () => void
+  onDeleted: (message: string) => void
 }) {
   const client = useQueryClient()
   const [showConfig, setShowConfig] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const detail = useQuery({
-    queryKey: [...serverQueryKey(server), 'peer', peer.public_key],
-    queryFn: ({ signal }) => api.peer(server, peer.public_key, signal),
+    queryKey: [...serverQueryKey(server), 'peer', peer.id],
+    queryFn: ({ signal }) => api.peer(server, peer.id, signal),
+    refetchInterval: 15_000,
   })
   const config = useQuery({
-    queryKey: [...serverQueryKey(server), 'partial-config', peer.public_key],
-    queryFn: ({ signal }) => api.peerConfig(server, peer.public_key, signal),
+    queryKey: [...serverQueryKey(server), 'config-template', peer.id],
+    queryFn: ({ signal }) => api.peerConfig(server, peer.id, signal),
     enabled: showConfig,
   })
   const deletion = useMutation({
-    mutationFn: () => api.deletePeer(server, peer.public_key),
+    mutationFn: () => api.deletePeer(server, peer.id),
     retry: false,
-    onSuccess: () => {
+    onSuccess: (operation) => {
+      if (operation) trackOperation(client, server, operation)
       client.removeQueries({
-        queryKey: [...serverQueryKey(server), 'peer', peer.public_key],
+        queryKey: [...serverQueryKey(server), 'peer', peer.id],
       })
       client.removeQueries({
-        queryKey: [
-          ...serverQueryKey(server),
-          'partial-config',
-          peer.public_key,
-        ],
+        queryKey: [...serverQueryKey(server), 'config-template', peer.id],
       })
-      void client.invalidateQueries({ queryKey: serverQueryKey(server) })
-      onDeleted()
+      refreshInventory(client, server)
+      onDeleted(
+        operation
+          ? 'Revocation pending. The address stays reserved until VPN access removal is verified.'
+          : 'Peer deleted. Its VPN access has been removed.',
+      )
       onClose()
     },
   })
@@ -66,12 +69,8 @@ export function PeerDetailsDialog({
             <div className="notice notice-error">
               <Trash2 size={18} />
               <span>
-                This removes{' '}
-                <strong>
-                  {data.allowed_ips.join(', ') || shortKey(peer.public_key)}
-                </strong>{' '}
-                from <strong>{server.name}</strong>. The device will lose VPN
-                access.
+                This removes <strong>{data.address}</strong> from{' '}
+                <strong>{server.name}</strong>. The device will lose VPN access.
               </span>
             </div>
             {deletion.error && (
@@ -120,31 +119,67 @@ export function PeerDetailsDialog({
             <dl className="detail-grid">
               <div>
                 <dt>VPN address</dt>
-                <dd>{data.allowed_ips.join(', ') || 'Not assigned'}</dd>
+                <dd>{data.address}/32</dd>
               </div>
               <div>
                 <dt>Endpoint</dt>
-                <dd>{data.endpoint || 'Not seen yet'}</dd>
+                <dd>
+                  {data.observation
+                    ? data.observation.endpoint || 'Not seen yet'
+                    : 'Unavailable'}
+                </dd>
               </div>
               <div>
                 <dt>Last handshake</dt>
-                <dd>{handshakeLabel(data.latest_handshake)}</dd>
+                <dd>
+                  {data.observation
+                    ? handshakeLabel(data.observation.latest_handshake)
+                    : 'Unavailable'}
+                </dd>
               </div>
               <div>
                 <dt>Keepalive</dt>
                 <dd>
-                  {data.persistent_keepalive
-                    ? `${data.persistent_keepalive}s`
-                    : 'Off'}
+                  {data.observation
+                    ? data.observation.persistent_keepalive
+                      ? `${data.observation.persistent_keepalive}s`
+                      : 'Off'
+                    : 'Unavailable'}
                 </dd>
               </div>
               <div>
                 <dt>Received by server</dt>
-                <dd>{formatBytes(data.transfer_rx)}</dd>
+                <dd>
+                  {data.observation
+                    ? formatBytes(data.observation.transfer_rx)
+                    : '—'}
+                </dd>
               </div>
               <div>
                 <dt>Sent by server</dt>
-                <dd>{formatBytes(data.transfer_tx)}</dd>
+                <dd>
+                  {data.observation
+                    ? formatBytes(data.observation.transfer_tx)
+                    : '—'}
+                </dd>
+              </div>
+            </dl>
+            <dl className="detail-grid">
+              <div>
+                <dt>State</dt>
+                <dd>{data.state}</dd>
+              </div>
+              <div>
+                <dt>Applied in WireGuard</dt>
+                <dd>{data.applied ? 'Yes' : 'No'}</dd>
+              </div>
+              <div>
+                <dt>Peer ID</dt>
+                <dd className="full-key">{data.id}</dd>
+              </div>
+              <div>
+                <dt>Created</dt>
+                <dd>{new Date(data.created_at * 1000).toLocaleString()}</dd>
               </div>
             </dl>
             <div className="field">
@@ -155,9 +190,10 @@ export function PeerDetailsDialog({
             {showConfig ? (
               <div className="partial-config">
                 <div className="notice">
-                  This is a partial configuration, not a ready-to-import client
-                  file. Add an [Interface] section with your device’s private
-                  key, address and DNS.
+                  This is a configuration template, not a ready-to-import client
+                  file. Replace &lt;YOUR_PRIVATE_KEY&gt; locally with your
+                  retained private key before importing. The API cannot recover
+                  a generated private key.
                 </div>
                 {config.isPending && (
                   <div className="loading-inline">
@@ -184,19 +220,19 @@ export function PeerDetailsDialog({
                     <div className="button-row">
                       <CopyButton
                         text={config.data.config}
-                        label="Copy partial config"
+                        label="Copy template"
                       />
                       <Button
                         variant="outline"
                         onClick={() =>
                           downloadText(
                             config.data!.config,
-                            'wireguard-partial.conf',
+                            'wireguard-template.conf',
                           )
                         }
                       >
                         <Download />
-                        Download partial .conf
+                        Download template .conf
                       </Button>
                     </div>
                   </>
@@ -205,7 +241,7 @@ export function PeerDetailsDialog({
             ) : (
               <Button variant="outline" onClick={() => setShowConfig(true)}>
                 <FileCode2 />
-                View partial config
+                View config template
               </Button>
             )}
             <div className="dialog-actions">

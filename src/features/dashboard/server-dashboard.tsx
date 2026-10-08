@@ -10,6 +10,8 @@ import { CreatePeerDialog } from '@/features/peers/create-peer-dialog'
 import { PeerDetailsDialog } from '@/features/peers/peer-details-dialog'
 import { PeerList } from './peer-list'
 import { ServerStats } from './server-stats'
+import { TrackedOperations } from '@/features/peers/operation-status'
+import { MetricsDialog } from './metrics-dialog'
 
 export function ServerDashboard({
   server,
@@ -23,8 +25,8 @@ export function ServerDashboard({
   onNotice: (message: string) => void
 }) {
   const health = useQuery({
-    queryKey: [...serverQueryKey(server), 'health'],
-    queryFn: ({ signal }) => api.health(server, signal),
+    queryKey: [...serverQueryKey(server), 'readiness'],
+    queryFn: ({ signal }) => api.ready(server, signal),
     refetchInterval: 15_000,
   })
   const peers = useQuery({
@@ -32,22 +34,37 @@ export function ServerDashboard({
     queryFn: ({ signal }) => api.peers(server, signal),
     refetchInterval: 15_000,
   })
-  const [dialog, setDialog] = useState<'create' | Peer | null>(null)
-  const healthy =
-    !health.error &&
-    health.data?.status === 'healthy' &&
-    health.data.wireguard_available
+  const live = useQuery({
+    queryKey: [...serverQueryKey(server), 'liveness'],
+    queryFn: ({ signal }) => api.live(server, signal),
+    refetchInterval: 15_000,
+  })
+  const info = useQuery({
+    queryKey: [...serverQueryKey(server), 'server-info'],
+    queryFn: ({ signal }) => api.server(server, signal),
+    refetchInterval: 15_000,
+  })
+  const [dialog, setDialog] = useState<'create' | 'metrics' | Peer | null>(null)
+  const healthy = !health.error && health.data?.status === 'ready'
   const status = health.isPending
     ? 'Checking'
     : health.error
-      ? 'Unreachable'
+      ? live.data && !live.error
+        ? 'Alive · readiness unavailable'
+        : 'Unreachable'
       : healthy
-        ? 'Healthy'
-        : 'Unavailable'
-  const refreshing = health.isFetching || peers.isFetching
+        ? 'Ready'
+        : 'Not ready'
+  const refreshing =
+    health.isFetching || peers.isFetching || info.isFetching || live.isFetching
   const canCreate = peers.isSuccess && !peers.error
   async function refresh() {
-    await Promise.all([health.refetch(), peers.refetch()])
+    await Promise.all([
+      health.refetch(),
+      peers.refetch(),
+      info.refetch(),
+      live.refetch(),
+    ])
   }
 
   return (
@@ -77,7 +94,7 @@ export function ServerDashboard({
           <div>
             <strong>{new URL(server.url).host}</strong>
             <span>
-              {health.data?.wireguard_interface ?? 'WireGuard API'}{' '}
+              {health.data?.interface ?? 'WireGuard API'}{' '}
               <span className="separator">/</span> {server.url}
             </span>
           </div>
@@ -99,10 +116,10 @@ export function ServerDashboard({
           </button>
         </div>
       </section>
-      {(health.error || peers.error) && (
+      {(health.error || peers.error || info.error || live.error) && (
         <div className="dashboard-error">
           <ErrorNotice
-            message={`${errorMessage(peers.error ?? health.error)}${peers.data ? ' Previously fetched data is shown below.' : ''}`}
+            message={`${errorMessage(peers.error ?? info.error ?? health.error ?? live.error)}${peers.data ? ' Previously fetched data is shown below.' : ''}`}
           />
           <div className="button-row">
             <Button
@@ -121,9 +138,42 @@ export function ServerDashboard({
           </div>
         </div>
       )}
-      {health.data?.status === 'unhealthy' && !health.error && (
-        <ErrorNotice message="The API is reachable, but its WireGuard interface is unavailable. Check the WireGuard service on this server." />
+      {health.data?.status === 'not_ready' && !health.error && (
+        <ErrorNotice
+          message={`The API is reachable but not ready. Reason: ${health.data.reason ?? 'unavailable'}. Pending operations may still be reconciling.`}
+        />
       )}
+      {info.data && (
+        <section className="notice" aria-label="VPN server information">
+          <dl className="detail-grid">
+            <div>
+              <dt>VPN endpoint</dt>
+              <dd>{info.data.endpoint}</dd>
+            </div>
+            <div>
+              <dt>Server address / pool</dt>
+              <dd>
+                {info.data.address} · {info.data.pool}
+              </dd>
+            </div>
+            <div>
+              <dt>Address capacity</dt>
+              <dd>
+                {info.data.reserved} reserved / {info.data.capacity} total ·{' '}
+                {info.data.available} available
+              </dd>
+            </div>
+            <div>
+              <dt>Server public key</dt>
+              <dd className="full-key">{info.data.public_key}</dd>
+            </div>
+          </dl>
+          <Button variant="outline" onClick={() => setDialog('metrics')}>
+            View metrics
+          </Button>
+        </section>
+      )}
+      <TrackedOperations server={server} />
       <ServerStats peers={peers.data} />
       <PeerList
         peers={peers.data}
@@ -155,10 +205,11 @@ export function ServerDashboard({
           server={server}
           peer={dialog}
           onClose={() => setDialog(null)}
-          onDeleted={() =>
-            onNotice('Peer deleted. Its VPN access has been removed.')
-          }
+          onDeleted={onNotice}
         />
+      )}
+      {dialog === 'metrics' && (
+        <MetricsDialog server={server} onClose={() => setDialog(null)} />
       )}
     </>
   )

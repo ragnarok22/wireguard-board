@@ -3,16 +3,20 @@ import type { Peer } from '@/lib/api-types'
 import { formatBytes, isRecentlyActive } from '@/lib/formatters'
 
 export function ServerStats({ peers }: { peers?: Peer[] }) {
-  const activity = peers?.filter((peer) =>
-    isRecentlyActive(peer.latest_handshake),
+  const activity = peers?.filter(
+    (peer) =>
+      peer.applied &&
+      isRecentlyActive(peer.observation?.latest_handshake ?? null),
   ).length
-  const traffic = peers?.reduce(
-    (total, peer) => ({
-      rx: total.rx + peer.transfer_rx,
-      tx: total.tx + peer.transfer_tx,
-    }),
-    { rx: 0, tx: 0 },
-  )
+  const traffic = peers?.every((peer) => peer.observation)
+    ? peers.reduce(
+        (total, peer) => ({
+          rx: total.rx + peer.observation!.transfer_rx,
+          tx: total.tx + peer.observation!.transfer_tx,
+        }),
+        { rx: 0, tx: 0 },
+      )
+    : undefined
   const stats = [
     {
       label: 'Total peers',
@@ -22,7 +26,7 @@ export function ServerStats({ peers }: { peers?: Peer[] }) {
     },
     {
       label: 'Recently active',
-      value: activity ?? '—',
+      value: peers?.every((peer) => peer.observation) ? activity : '—',
       description: 'Handshake in the last 3 minutes',
       icon: Radio,
     },

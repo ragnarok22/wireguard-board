@@ -26,7 +26,9 @@ function PeerRow({
   peer: Peer
   onSelect: (peer: Peer) => void
 }) {
-  const recent = isRecentlyActive(peer.latest_handshake)
+  const observation = peer.observation
+  const recent =
+    peer.applied && isRecentlyActive(observation?.latest_handshake ?? null)
   return (
     <tr>
       <td>
@@ -36,7 +38,7 @@ function PeerRow({
           </span>
           <div>
             <button className="peer-link" onClick={() => onSelect(peer)}>
-              {peer.allowed_ips.join(', ') || 'Unassigned peer'}
+              {peer.address}/32
             </button>
             <span className="mono">{shortKey(peer.public_key)}</span>
           </div>
@@ -45,26 +47,38 @@ function PeerRow({
       <td>
         <span className={`activity-tag ${recent ? 'recent' : ''}`}>
           <span className="status-dot" />
-          {recent ? 'Recent' : peer.latest_handshake ? 'Idle' : 'Never seen'}
+          {peer.state !== 'active'
+            ? peer.state
+            : !peer.applied
+              ? 'Not applied'
+              : !observation
+                ? 'Unavailable'
+                : recent
+                  ? 'Recent'
+                  : observation.latest_handshake
+                    ? 'Idle'
+                    : 'Never seen'}
         </span>
       </td>
-      <td>{handshakeLabel(peer.latest_handshake)}</td>
+      <td>
+        {observation ? handshakeLabel(observation.latest_handshake) : '—'}
+      </td>
       <td>
         <div className="traffic-values">
           <span>
             <ArrowDownLeft size={13} />
-            {formatBytes(peer.transfer_rx)}
+            {observation ? formatBytes(observation.transfer_rx) : '—'}
           </span>
           <span>
             <ArrowUpRight size={13} />
-            {formatBytes(peer.transfer_tx)}
+            {observation ? formatBytes(observation.transfer_tx) : '—'}
           </span>
         </div>
       </td>
       <td>
         <button
           className="icon-button"
-          aria-label={`View peer ${peer.allowed_ips[0] ?? shortKey(peer.public_key)}`}
+          aria-label={`View peer ${peer.address}/32`}
           onClick={() => onSelect(peer)}
         >
           <ChevronRight size={18} />
@@ -157,15 +171,23 @@ export function PeerList({
   const visiblePeers = allPeers.filter((peer) => {
     const matchesSearch = [
       peer.public_key,
-      ...peer.allowed_ips,
-      peer.endpoint ?? '',
+      peer.id,
+      peer.address,
+      peer.observation?.endpoint ?? '',
     ].some((value) => value.toLowerCase().includes(normalizedSearch))
     return (
       matchesSearch &&
       (filter === 'all' ||
         (filter === 'recent'
-          ? isRecentlyActive(peer.latest_handshake)
-          : !isRecentlyActive(peer.latest_handshake)))
+          ? peer.applied &&
+            isRecentlyActive(peer.observation?.latest_handshake ?? null)
+          : filter === 'idle'
+            ? peer.applied &&
+              !!peer.observation &&
+              !isRecentlyActive(peer.observation.latest_handshake)
+            : filter === 'unavailable'
+              ? !peer.observation || !peer.applied
+              : peer.state === filter))
     )
   })
   return (
@@ -187,7 +209,7 @@ export function PeerList({
           <Search size={17} />
           <input
             aria-label="Search peers"
-            placeholder="Search by IP, key or endpoint…"
+            placeholder="Search by IP, ID, key or endpoint…"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
@@ -201,6 +223,9 @@ export function PeerList({
             <option value="all">All activity</option>
             <option value="recent">Recently active</option>
             <option value="idle">Idle / never seen</option>
+            <option value="pending">Pending application</option>
+            <option value="deleting">Deleting</option>
+            <option value="unavailable">Unavailable / not applied</option>
           </select>
         </label>
       </div>
@@ -220,11 +245,7 @@ export function PeerList({
             </thead>
             <tbody>
               {visiblePeers.map((peer) => (
-                <PeerRow
-                  key={peer.public_key}
-                  peer={peer}
-                  onSelect={onSelect}
-                />
+                <PeerRow key={peer.id} peer={peer} onSelect={onSelect} />
               ))}
             </tbody>
           </table>

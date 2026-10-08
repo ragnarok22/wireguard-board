@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import {
-  buildClientConfig,
-  configFilename,
-  downloadText,
-} from './client-config'
+import { configFilename, downloadText } from './client-config'
 import { loadServers, saveServers, storageKey } from './server-storage'
 import { normalizeApiUrl } from './api-types'
 import {
@@ -12,47 +8,9 @@ import {
   formatBytes,
   uptimeLabel,
 } from './formatters'
-import {
-  partialConfig,
-  privateKey,
-  publicKey,
-  server,
-} from '@/test/api-fixtures'
+import { server } from '@/test/api-fixtures'
 
 describe('client configurations', () => {
-  it('combines the one-time private key with the server’s real Peer block', () => {
-    const config = buildClientConfig(
-      {
-        public_key: publicKey,
-        private_key: privateKey,
-        allowed_ips: ['10.13.13.2/32'],
-      },
-      partialConfig,
-    )
-    expect(config).toContain(
-      `[Interface]\nPrivateKey = ${privateKey}\nAddress = 10.13.13.2/32\nDNS = 1.1.1.1`,
-    )
-    expect(config).toContain(partialConfig)
-    expect(config.match(/\[Peer\]/g)).toHaveLength(1)
-  })
-  it('rejects custom-key peers and malformed partial configurations', () => {
-    expect(() =>
-      buildClientConfig(
-        { public_key: publicKey, allowed_ips: ['10.13.13.2/32'] },
-        partialConfig,
-      ),
-    ).toThrow('own key')
-    expect(() =>
-      buildClientConfig(
-        {
-          public_key: publicKey,
-          private_key: privateKey,
-          allowed_ips: ['10.13.13.2/32'],
-        },
-        '[Interface]\nPrivateKey=unexpected',
-      ),
-    ).toThrow('invalid partial')
-  })
   it('creates safe kebab-case filenames', () => {
     expect(configFilename('../../Work Laptop.conf')).toBe(
       'work-laptop-conf.conf',

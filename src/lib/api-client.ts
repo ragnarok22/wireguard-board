@@ -14,13 +14,13 @@ import {
 } from './api-types'
 
 export class ApiError extends Error {
-  constructor(
-    message: string,
-    readonly status = 0,
-    readonly code?: string,
-  ) {
+  readonly status: number
+  readonly code?: string
+  constructor(message: string, status = 0, code?: string) {
     super(message)
     this.name = 'ApiError'
+    this.status = status
+    this.code = code
   }
 }
 
