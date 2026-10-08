@@ -78,7 +78,7 @@ export default function App() {
         Skip to content
       </a>
       <aside className="sidebar" aria-label="Workspace navigation">
-        <a className="brand" href="./" aria-label="WireGuard Board home">
+        <a className="brand" href="./">
           <span className="brand-mark">
             <Network size={23} strokeWidth={1.8} />
           </span>

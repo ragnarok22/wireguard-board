@@ -129,7 +129,7 @@
   border: 1px solid transparent;
   border-radius: 7px;
   background: none;
-  color: #697b70;
+  color: var(--text-muted);
 }
 .server-nav-item > span:nth-child(2) {
   flex: 1;
@@ -162,7 +162,7 @@
   padding: 14px 11px;
 }
 .add-server-link {
-  color: #687b70;
+  color: var(--text-muted);
   font-size: 12px;
   text-align: left;
   padding: 12px 11px;
@@ -230,7 +230,7 @@
   align-items: center;
   justify-content: space-between;
   background: #ffffff9c;
-  color: #6e8077;
+  color: var(--text-muted);
   font-size: 12px;
 }
 .topbar > div,
@@ -302,7 +302,7 @@ h1 {
   display: flex;
   gap: 8px;
   align-items: center;
-  color: #607d69;
+  color: var(--text-muted);
   font-size: 11px;
   border: 1px solid #dce7df;
   border-radius: 6px;
@@ -560,7 +560,7 @@ h1 {
   padding: 19px 20px 18px;
 }
 .stat-label {
-  color: #687e70;
+  color: var(--text-muted);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -655,7 +655,7 @@ h1 {
   height: 35px;
   padding: 0 29px 0 10px;
   background: #fff;
-  color: #6e8275;
+  color: var(--text-muted);
   font-size: 11px;
 }
 .table-scroll {
@@ -684,7 +684,7 @@ h1 {
   padding: 17px 15px;
   border-bottom: 1px solid #edf1ee;
   font-size: 11px;
-  color: #6d8173;
+  color: var(--text-muted);
 }
 .peer-table tr:last-child td {
   border: 0;
@@ -736,7 +736,7 @@ h1 {
   color: var(--text-muted);
 }
 .activity-tag.recent {
-  color: #39835c;
+  color: #2c714c;
   background: #edf6ef;
 }
 .recent .status-dot {
@@ -855,7 +855,7 @@ h1 {
 .notice-subtle {
   background: #f4f7f4;
   border-color: #e4ece5;
-  color: #6a8271;
+  color: var(--text-muted);
   font-size: 11px;
 }
 main > .notice,
@@ -977,7 +977,7 @@ fieldset {
   padding: 12px 13px;
 }
 .advanced summary {
-  color: #698373;
+  color: var(--text-muted);
   font-size: 11px;
 }
 .advanced-fields {
@@ -1006,7 +1006,7 @@ fieldset {
   gap: 9px;
   align-items: center;
   font-size: 12px;
-  color: #6b8474;
+  color: var(--text-muted);
 }
 .config-preview {
   display: grid;
@@ -1104,11 +1104,6 @@ pre {
   }
   to {
     opacity: 1;
-  }
-}
-@media (min-width: 768px) {
-  main {
-    animation: fade-in 250ms ease-out;
   }
 }
 @media (max-width: 1100px) {
