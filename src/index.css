@@ -44,15 +44,54 @@
   --radius-lg: 0.5rem;
 }
 
-* { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; }
-button, input, select { font: inherit; }
-button, summary { cursor: pointer; }
-button:disabled { cursor: not-allowed; }
-a { color: inherit; text-decoration: none; }
-button, a, input, select, summary, pre { outline-offset: 4px; }
-:focus-visible { outline: 2px solid var(--ring); }
-h1, h2, h3, p { margin: 0; }
-button { -webkit-tap-highlight-color: transparent; }
-code, pre, .mono { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace; }
-::selection { background: #cee5da; }
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-width: 320px;
+}
+button,
+input,
+select {
+  font: inherit;
+}
+button,
+summary {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+button,
+a,
+input,
+select,
+summary,
+pre {
+  outline-offset: 4px;
+}
+:focus-visible {
+  outline: 2px solid var(--ring);
+}
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+code,
+pre,
+.mono {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+}
+::selection {
+  background: #cee5da;
+}
