@@ -88,6 +88,7 @@ it('removes an outdated badge when the update check fails after a successful che
   await act(async () => {
     await client.invalidateQueries({ queryKey: ['releases'] })
   })
+  await screen.findByText('Update check unavailable.')
   expect(screen.getByLabelText(/^API /)).not.toHaveClass('version-outdated')
   expect(screen.getByText('API v1.0.0')).toBeInTheDocument()
   expect(screen.getByText('Update check unavailable.')).toBeInTheDocument()

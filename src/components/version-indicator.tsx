@@ -16,8 +16,7 @@ export function VersionIndicator({
     version && release?.status === 'available'
       ? compareVersions(release.version, version)
       : null
-  const hasUpdate =
-    comparison !== null && comparison !== undefined && comparison > 0
+  const hasUpdate = comparison !== null && comparison > 0
   const label = project === 'api' ? 'API' : 'Board'
   let message = 'Checking for updates…'
   if (!version) message = 'Installed version unavailable.'
@@ -34,6 +33,7 @@ export function VersionIndicator({
   }
   return (
     <span
+      role="group"
       className={`version-indicator${hasUpdate ? ' version-outdated' : ''}${compact ? ' version-compact' : ''}`}
       title={message}
       aria-label={`${label} ${version ? `v${version.replace(/^v/, '')}` : 'version unavailable'}. ${message}`}
