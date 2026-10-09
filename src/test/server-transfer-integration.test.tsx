@@ -10,14 +10,15 @@ import { server } from './api-fixtures'
 function setup() {
   const fetchMock = vi.fn()
   vi.stubGlobal('fetch', fetchMock)
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  })
+  client.setQueryData(['releases'], {
+    api: { status: 'none' },
+    board: { status: 'none' },
+  })
   render(
-    <QueryClientProvider
-      client={
-        new QueryClient({
-          defaultOptions: { queries: { retry: false, gcTime: 0 } },
-        })
-      }
-    >
+    <QueryClientProvider client={client}>
       <App />
     </QueryClientProvider>,
   )
@@ -52,7 +53,7 @@ it('imports metadata as locked connections without network access or overwriting
   )
   await user.click(screen.getByRole('button', { name: 'Import servers' }))
   expect(
-    screen.getByRole('button', { name: 'Berlin Locked' }),
+    screen.getByRole('button', { name: /^Berlin Locked/ }),
   ).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'Amsterdam' })).toBeInTheDocument()
   expect(fetchMock).not.toHaveBeenCalled()

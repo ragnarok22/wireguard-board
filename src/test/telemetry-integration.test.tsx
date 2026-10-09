@@ -30,6 +30,10 @@ function setup(overrides: Record<string, () => Response> = {}) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   })
+  client.setQueryData(['releases'], {
+    api: { status: 'none' },
+    board: { status: 'none' },
+  })
   render(
     <QueryClientProvider client={client}>
       <ServerDashboard

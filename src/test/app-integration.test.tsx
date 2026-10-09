@@ -31,6 +31,10 @@ function renderApp(element = <App />) {
       mutations: { retry: false },
     },
   })
+  client.setQueryData(['releases'], {
+    api: { status: 'none' },
+    board: { status: 'none' },
+  })
   const result = render(
     <QueryClientProvider client={client}>{element}</QueryClientProvider>,
   )
@@ -44,11 +48,6 @@ function mockApi() {
   ])
   const fetchMock = vi.fn(
     async (input: string | URL | Request, options?: RequestInit) => {
-      if (input === '/api/releases')
-        return jsonResponse({
-          api: { status: 'none' },
-          board: { status: 'none' },
-        })
       const url = proxyTargetUrl(input, options)
       const list = peersByHost.get(url.host) ?? []
       if (url.pathname === '/readyz') return jsonResponse(health)
@@ -131,9 +130,7 @@ describe('workspace workflows', () => {
     expect(
       screen.getByRole('heading', { name: 'A home for your connections.' }),
     ).toBeInTheDocument()
-    expect(
-      fetchMock.mock.calls.every(([input]) => input === '/api/releases'),
-    ).toBe(true)
+    expect(fetchMock).not.toHaveBeenCalled()
     await user.click(
       screen.getByRole('button', { name: 'Add your first server' }),
     )
@@ -191,7 +188,10 @@ describe('workspace workflows', () => {
       client
         .getQueryCache()
         .getAll()
-        .filter((query) => query.queryKey[1] !== server.id)
+        .filter(
+          (query) =>
+            query.queryKey[0] === 'server' && query.queryKey[1] !== server.id,
+        )
         .every((query) => query.state.data === undefined),
     ).toBe(true)
     await user.click(screen.getByRole('button', { name: /Amsterdam Ready/ }))
