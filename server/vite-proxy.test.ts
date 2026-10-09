@@ -1,5 +1,10 @@
 // @vitest-environment node
-import { createServer, type Server } from 'node:http'
+import {
+  createServer,
+  type IncomingMessage,
+  type ServerResponse,
+  type Server,
+} from 'node:http'
 import { once } from 'node:events'
 import { afterEach, expect, it, vi } from 'vitest'
 import { serveProxy, wireguardProxy } from './vite-proxy.ts'
@@ -106,4 +111,46 @@ it('exposes the Vercel handler and local development/preview adapters', async ()
   )
   expect(response.status).toBe(400)
   expect((await response.json()).code).toBe('proxy_private_target')
+})
+
+it('routes local release checks through the shared handler and passes other paths on', async () => {
+  const browserFetch = fetch
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue(new Response(null, { status: 404 })),
+  )
+  let middleware: (
+    request: IncomingMessage,
+    response: ServerResponse,
+    next: () => void,
+  ) => void
+  const plugin = wireguardProxy()
+  const configure = plugin.configureServer as (server: unknown) => void
+  configure({
+    middlewares: {
+      use: (handler: typeof middleware) => {
+        middleware = handler
+      },
+    },
+  })
+  expect(plugin.configurePreviewServer).toBe(plugin.configureServer)
+  server = createServer((request, response) => {
+    middleware(request, response, () => {
+      response.writeHead(404)
+      response.end()
+    })
+  })
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  const address = server.address()
+  if (!address || typeof address === 'string')
+    throw new Error('Missing test port')
+  const origin = `http://127.0.0.1:${address.port}`
+  const response = await browserFetch(`${origin}/api/releases`)
+  expect(response.status).toBe(200)
+  expect(await response.json()).toEqual({
+    api: { status: 'none' },
+    board: { status: 'none' },
+  })
+  expect((await browserFetch(`${origin}/other`)).status).toBe(404)
 })

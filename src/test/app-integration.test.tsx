@@ -44,6 +44,11 @@ function mockApi() {
   ])
   const fetchMock = vi.fn(
     async (input: string | URL | Request, options?: RequestInit) => {
+      if (input === '/api/releases')
+        return jsonResponse({
+          api: { status: 'none' },
+          board: { status: 'none' },
+        })
       const url = proxyTargetUrl(input, options)
       const list = peersByHost.get(url.host) ?? []
       if (url.pathname === '/readyz') return jsonResponse(health)
@@ -126,7 +131,9 @@ describe('workspace workflows', () => {
     expect(
       screen.getByRole('heading', { name: 'A home for your connections.' }),
     ).toBeInTheDocument()
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(
+      fetchMock.mock.calls.every(([input]) => input === '/api/releases'),
+    ).toBe(true)
     await user.click(
       screen.getByRole('button', { name: 'Add your first server' }),
     )

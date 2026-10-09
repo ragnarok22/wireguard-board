@@ -23,6 +23,7 @@
     }
   ],
   "functions": {
+    "api/releases.ts": { "maxDuration": 15, "supportsCancellation": true },
     "api/wireguard.ts": { "maxDuration": 15, "supportsCancellation": true }
   }
 }

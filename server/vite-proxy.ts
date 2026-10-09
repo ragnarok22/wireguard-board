@@ -4,6 +4,7 @@ import type { Plugin } from 'vite'
 import { handleProxy } from './proxy-handler.ts'
 import { ProxyError, proxyErrorResponse } from './proxy-error.ts'
 import { securityHeaders } from './security-headers.ts'
+import { handleReleases } from './releases-handler.ts'
 
 export async function serveProxy(
   request: IncomingMessage,
@@ -65,11 +66,16 @@ export function wireguardProxy(): Plugin {
     }
   }) => {
     server.middlewares.use((request, response, next) => {
-      if (request.url?.split('?')[0] !== '/api/wireguard') {
+      const path = request.url?.split('?')[0]
+      if (path !== '/api/wireguard' && path !== '/api/releases') {
         next()
         return
       }
-      void serveProxy(request, response)
+      void serveProxy(
+        request,
+        response,
+        path === '/api/releases' ? handleReleases : handleProxy,
+      )
     })
   }
   return {

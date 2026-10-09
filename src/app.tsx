@@ -22,6 +22,7 @@ import { useServerRegistry } from '@/hooks/use-server-registry'
 import { ServerForm } from '@/features/servers/server-form'
 import { ServerTransferDialog } from '@/features/servers/server-transfer-dialog'
 import { ServerDashboard } from '@/features/dashboard/server-dashboard'
+import { VersionIndicator } from '@/components/version-indicator'
 import './app.css'
 
 function useServerNavigationStatus(server: ServerConnection) {
@@ -37,19 +38,22 @@ function useServerNavigationStatus(server: ServerConnection) {
     enabled: !!server.token,
     refetchInterval: 30_000,
   })
-  if (!server.token) return { label: 'Locked', dotClass: '' }
-  if (health.isPending) return { label: 'Checking', dotClass: '' }
+  const version =
+    !liveness.error && server.token ? liveness.data?.version : undefined
+  if (!server.token) return { label: 'Locked', dotClass: '', version }
+  if (health.isPending) return { label: 'Checking', dotClass: '', version }
   if (health.error) {
     return {
       label: liveness.isSuccess
         ? 'Alive · readiness unavailable'
         : 'Unreachable',
       dotClass: 'dot-amber',
+      version,
     }
   }
   if (health.data.status === 'ready')
-    return { label: 'Ready', dotClass: 'dot-green' }
-  return { label: 'Not ready', dotClass: 'dot-amber' }
+    return { label: 'Ready', dotClass: 'dot-green', version }
+  return { label: 'Not ready', dotClass: 'dot-amber', version }
 }
 
 function ServerItem({
@@ -72,6 +76,9 @@ function ServerItem({
       <span>
         <strong>{server.name}</strong>
         <small>{status.label}</small>
+        <small>
+          <VersionIndicator project="api" version={status.version} compact />
+        </small>
       </span>
       <span className={`status-dot ${status.dotClass}`} />
     </button>
@@ -159,9 +166,10 @@ export default function App() {
             API documentation
             <ExternalLink size={14} />
           </a>
-          <span className="sidebar-version">
-            WIREGUARD BOARD <span>v0.1</span>
-          </span>
+          <div className="sidebar-version">
+            <span>WIREGUARD BOARD</span>
+            <VersionIndicator project="board" version={__BOARD_VERSION__} />
+          </div>
         </div>
       </aside>
       <div className="main-shell">

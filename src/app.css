@@ -257,11 +257,45 @@
 }
 .sidebar-version {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 8px;
   color: var(--text-muted);
   font-size: 9px;
   letter-spacing: 1px;
   padding: 20px 8px 0;
+}
+.version-indicator {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 11px;
+  letter-spacing: normal;
+  color: var(--text-muted);
+}
+.version-indicator .version-note {
+  font-size: 10px;
+}
+.version-indicator.version-outdated {
+  color: #854d0e;
+  background: #fef3c7;
+  border-radius: 4px;
+  padding: 3px 6px;
+}
+.version-indicator a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.version-indicator.version-compact {
+  display: inline;
+  font-size: 10px;
+  padding: 0;
+  background: none;
+}
+.sidebar-version .version-indicator {
+  align-items: flex-start;
+  flex-direction: column;
 }
 .main-shell {
   flex: 1;
@@ -549,12 +583,15 @@ h1 {
   font-weight: 550;
   display: block;
 }
-.server-strip-address div > span {
+.server-strip-address div > .connection-url {
   display: block;
   margin-top: 4px;
   font-size: 10px;
   color: var(--text-muted);
   overflow-wrap: anywhere;
+}
+.server-strip-address .version-indicator {
+  margin-top: 6px;
 }
 .separator {
   padding: 0 5px;

@@ -35,6 +35,7 @@ it('runs the independently emitted Vercel function using root compiler settings'
   directory = await mkdtemp(resolve(parent, 'vercel-runtime-'))
   await mkdir(resolve(directory, 'api'))
   await mkdir(resolve(directory, 'server'))
+  await mkdir(resolve(directory, 'shared'))
   await writeFile(resolve(directory, 'package.json'), '{"type":"module"}')
   await symlink(
     resolve(root, 'node_modules'),
@@ -43,6 +44,8 @@ it('runs the independently emitted Vercel function using root compiler settings'
   )
   const files = [
     'api/wireguard.ts',
+    'api/releases.ts',
+    'shared/releases.ts',
     ...(await readdir(resolve(root, 'server')))
       .filter((file) => file.endsWith('.ts') && !file.endsWith('.test.ts'))
       .map((file) => `server/${file}`),
@@ -71,4 +74,11 @@ it('runs the independently emitted Vercel function using root compiler settings'
   expect(response.status).toBe(400)
   expect((await response.json()).code).toBe('proxy_private_target')
   expect(parsed.options.types).toContain('node')
+  const releasesModule = await import(
+    pathToFileURL(resolve(directory, 'api/releases.js')).href
+  )
+  const releasesResponse = (await releasesModule.default.fetch(
+    new Request('https://board.example.com/api/releases', { method: 'POST' }),
+  )) as Response
+  expect(releasesResponse.status).toBe(405)
 })

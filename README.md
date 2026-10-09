@@ -17,6 +17,8 @@ the same proxy handler through Vite.
 
 - **Multiple servers:** add, edit and remove server connections, each with its own
   name, API base URL and credentials.
+- **Versions and updates:** see each connected server's API version and the board's
+  build version, highlighted in yellow when a newer stable GitHub release is available.
 - **Portable registry:** import or export server metadata without tokens or keys.
   Imported connections start locked and are merged without replacing existing URLs.
 - **Overview:** check readiness, peer counts, VPN endpoint, address pool and capacity.
@@ -174,6 +176,29 @@ remain usable. The connection test does not require these collectors to be healt
   Backend sampling is independent of dashboard polling. Stale/failed samples return
   safe errors such as `telemetry_unavailable`; they are not treated as healthy zeros.
 
+### Versions and update checks
+
+Each connected server shows the `wireguard-api` version returned by `/livez` in
+the server navigation and connection summary. This is the management API's version.
+The board version comes from `package.json` at build time and appears in the sidebar.
+Keep that version synchronized with the board's release tag before building a release.
+
+The browser shares one `/api/releases` query across the board and all servers,
+checking every hour while the tab is active. The endpoint checks GitHub's latest
+stable release for `ragnarok22/wireguard-api` and `ragnarok22/wireguard-board` in
+parallel. It caches successful checks (including no published release) for one
+hour, and failed checks for five minutes per function instance, with matching CDN
+cache lifetimes. Local development and preview expose the same endpoint.
+It uses fixed repositories and does not forward API tokens or server URLs to GitHub.
+
+A newer stable semantic version highlights the installed version in yellow and
+provides a release link in the server summary or board footer. RC, beta, alpha and
+draft releases are ignored; an installed prerelease can be older than its final
+stable release. Older or equal releases produce no yellow warning. Unknown version
+formats, GitHub failures and repositories without releases show an explicit check
+status without changing server readiness or blocking peer management. Locked or
+unreachable connections show the installed version as unavailable.
+
 ### Proxy, CORS and HTTPS
 
 The browser sends requests only to the board's own `/api/wireguard` endpoint.
@@ -305,6 +330,8 @@ src/
 public/            # Static assets
 api/
   wireguard.ts     # Vercel Web handler
+  releases.ts      # Cached stable GitHub release checks
+shared/            # Release validation and semantic version comparison
 server/            # Public destination validation, bounded transport and Vite adapter
 scripts/           # Firewall setup and deployed smoke-test runner
 ```

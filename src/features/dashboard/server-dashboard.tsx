@@ -19,6 +19,7 @@ import { PeerList } from './peer-list'
 import { SystemTelemetry, VpnTelemetry } from './telemetry-panels'
 import { TrackedOperations } from '@/features/peers/operation-status'
 import { MetricsDialog } from './metrics-dialog'
+import { VersionIndicator } from '@/components/version-indicator'
 
 type ReadinessQuery = UseQueryResult<Awaited<ReturnType<typeof api.ready>>>
 type LivenessQuery = UseQueryResult<Awaited<ReturnType<typeof api.live>>>
@@ -178,8 +179,7 @@ export function ServerDashboard({
           Tokens stay in this session. You’re in control.
         </span>
         <span>
-          {health.data &&
-            `API ${health.data.version} · Uptime ${uptimeLabel(health.data.uptime_seconds)}`}
+          {health.data && `Uptime ${uptimeLabel(health.data.uptime_seconds)}`}
         </span>
       </div>
       {dialog === 'create' && (
@@ -230,10 +230,14 @@ function ServerConnectionStrip({
         </span>
         <div>
           <strong>{new URL(server.url).host}</strong>
-          <span>
+          <span className="connection-url">
             {health.data?.interface ?? 'WireGuard API'}{' '}
             <span className="separator">/</span> {server.url}
           </span>
+          <VersionIndicator
+            project="api"
+            version={!live.error ? live.data?.version : undefined}
+          />
         </div>
       </div>
       <div className="server-strip-actions">
